@@ -86,6 +86,7 @@ func (s *SkipList) update(key []byte, value []byte) {
 			if bytes.Equal(c.next[i].key, key) {
 				c.next[i].value = value
 				updated = true
+				break
 			}
 		}
 	}
