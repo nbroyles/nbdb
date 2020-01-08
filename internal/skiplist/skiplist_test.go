@@ -6,7 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TODO: test locking semantics. also level generation?
+// TODO: more detailed tests
+// - locking semantics
+// - level generation
+// - removal from multiple levels
 
 func TestSkipList_RoundTrip(t *testing.T) {
 	list := New(1)
@@ -29,6 +32,20 @@ func TestSkipList_Put(t *testing.T) {
 	assertSkipListValue(t, list, "into", "this")
 	assertSkipListValue(t, list, "bad", "boy")
 	assertSkipListValue(t, list, "!!!!", "!!!!")
+}
+
+func TestSkipList_Remove(t *testing.T) {
+	list := New(1)
+
+	put(t, list, "foo", "bar")
+
+	assert.True(t, list.Remove([]byte("foo")))
+
+	found, val := list.Get([]byte("foo"))
+	assert.False(t, found)
+	assert.Nil(t, val)
+
+	assert.False(t, list.Remove([]byte("foo")))
 }
 
 func TestSkipList_Update(t *testing.T) {
