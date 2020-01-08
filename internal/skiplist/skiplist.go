@@ -51,7 +51,7 @@ func (s *SkipList) Get(key []byte) (bool, []byte) {
 
 func (s *SkipList) get(key []byte) (bool, []byte) {
 	c := s.head
-	for i := s.levels; i >= 0; i-- {
+	for i := s.levels - 1; i >= 0; i-- {
 	rightTraversal:
 		for ; c.next[i] != nil; c = c.next[i] {
 			switch bytes.Compare(c.next[i].key, key) {
@@ -81,7 +81,7 @@ func (s *SkipList) Put(key []byte, value []byte) {
 func (s *SkipList) update(key []byte, value []byte) {
 	c := s.head
 	updated := false
-	for i := s.levels; i >= 0; i-- {
+	for i := s.levels - 1; i >= 0; i-- {
 		for ; c.next[i] != nil; c = c.next[i] {
 			if bytes.Equal(c.next[i].key, key) {
 				c.next[i].value = value
@@ -105,7 +105,7 @@ func (s *SkipList) insert(key []byte, value []byte) {
 	newNode := &Node{next: make([]*Node, levels), key: key, value: value}
 
 	c := s.head
-	for i := s.levels; i >= 0; i-- {
+	for i := s.levels - 1; i >= 0; i-- {
 		for ; c.next[i] != nil; c = c.next[i] {
 			// Stop moving rightward at this level if next key is greater
 			// than key we plan to insert
