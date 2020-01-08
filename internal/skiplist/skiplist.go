@@ -5,7 +5,6 @@ import (
 	"log"
 	"math/rand"
 	"sync"
-	"time"
 )
 
 // TODO: make configurable?
@@ -32,8 +31,8 @@ type SkipList struct {
 	levels int
 }
 
-func New() *SkipList {
-	rand.Seed(time.Now().UnixNano())
+func New(seed int64) *SkipList {
+	rand.Seed(seed)
 
 	return &SkipList{
 		head:   &Node{next: make([]*Node, maxLevels)},
@@ -53,12 +52,13 @@ func (s *SkipList) Get(key []byte) (bool, []byte) {
 func (s *SkipList) get(key []byte) (bool, []byte) {
 	c := s.head
 	for i := s.levels; i >= 0; i-- {
+	rightTraversal:
 		for ; c.next[i] != nil; c = c.next[i] {
 			switch bytes.Compare(c.next[i].key, key) {
 			case 0:
 				return true, c.next[i].value
 			case 1: // next key is greater than the key we're searching for
-				break
+				break rightTraversal
 			}
 		}
 	}
