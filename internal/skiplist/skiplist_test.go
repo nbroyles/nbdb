@@ -9,14 +9,14 @@ import (
 // TODO: test locking semantics. also level generation?
 
 func TestSkipList_RoundTrip(t *testing.T) {
-	list := New()
+	list := New(1)
 
 	put(t, list, "howdy", "time")
 	assertSkipListValue(t, list, "howdy", "time")
 }
 
 func TestSkipList_Put(t *testing.T) {
-	list := New()
+	list := New(1)
 
 	put(t, list, "a", "lot")
 	put(t, list, "of", "keys")
@@ -32,7 +32,7 @@ func TestSkipList_Put(t *testing.T) {
 }
 
 func TestSkipList_Update(t *testing.T) {
-	list := New()
+	list := New(1)
 
 	put(t, list, "foo", "bar")
 	assertSkipListValue(t, list, "foo", "bar")
@@ -42,7 +42,7 @@ func TestSkipList_Update(t *testing.T) {
 }
 
 func TestSkipList_MultipleInserts(t *testing.T) {
-	list := New()
+	list := New(1)
 
 	list.insert([]byte("foo"), []byte("bar"))
 
@@ -52,7 +52,7 @@ func TestSkipList_MultipleInserts(t *testing.T) {
 }
 
 func TestSkipList_UpdateNonExistentKey(t *testing.T) {
-	list := New()
+	list := New(1)
 
 	assert.Panics(t, func() {
 		list.update([]byte("foo"), []byte("bar"))
