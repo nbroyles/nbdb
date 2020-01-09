@@ -84,7 +84,7 @@ func (s *SkipList) Put(key []byte, value []byte) {
 
 // Removes the specified key from the skip list. Returns true if
 // key was removed and false if key was not present
-func (s *SkipList) Remove(key []byte) bool {
+func (s *SkipList) Delete(key []byte) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

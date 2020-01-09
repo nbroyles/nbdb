@@ -34,18 +34,18 @@ func TestSkipList_Put(t *testing.T) {
 	assertSkipListValue(t, list, "!!!!", "!!!!")
 }
 
-func TestSkipList_Remove(t *testing.T) {
+func TestSkipList_Delete(t *testing.T) {
 	list := New(1)
 
 	put(t, list, "foo", "bar")
 
-	assert.True(t, list.Remove([]byte("foo")))
+	assert.True(t, list.Delete([]byte("foo")))
 
 	found, val := list.Get([]byte("foo"))
 	assert.False(t, found)
 	assert.Nil(t, val)
 
-	assert.False(t, list.Remove([]byte("foo")))
+	assert.False(t, list.Delete([]byte("foo")))
 }
 
 func TestSkipList_Update(t *testing.T) {

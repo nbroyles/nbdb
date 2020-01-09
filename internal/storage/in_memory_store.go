@@ -10,7 +10,7 @@ type InMemoryStore interface {
 	// Put inserts or updates the value if the key already exists
 	Put(key []byte, value []byte)
 
-	// Removes the specified key from the skip list. Returns true if
+	// Deletes the specified key from the skip list. Returns true if
 	// key was removed and false if key was not present
-	Remove(key []byte) bool
+	Delete(key []byte) bool
 }
