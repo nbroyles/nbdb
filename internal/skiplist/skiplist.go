@@ -5,6 +5,8 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+
+	"github.com/nbroyles/nbdb/internal/storage"
 )
 
 // TODO: make configurable?
@@ -30,6 +32,8 @@ type SkipList struct {
 	head   *Node
 	levels int
 }
+
+var _ storage.InMemoryStore = &SkipList{}
 
 func New(seed int64) *SkipList {
 	rand.Seed(seed)
@@ -80,7 +84,7 @@ func (s *SkipList) Put(key []byte, value []byte) {
 
 // Removes the specified key from the skip list. Returns true if
 // key was removed and false if key was not present
-func (s *SkipList) Remove(key []byte) bool {
+func (s *SkipList) Delete(key []byte) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
