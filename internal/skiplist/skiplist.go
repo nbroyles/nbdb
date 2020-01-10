@@ -2,8 +2,10 @@ package skiplist
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"sync"
 
 	"github.com/nbroyles/nbdb/internal/storage"
@@ -146,6 +148,69 @@ func (s *SkipList) insert(key []byte, value []byte) {
 			newNode.next[i] = c.next[i]
 			c.next[i] = newNode
 		}
+	}
+}
+
+// Print prints skip list in a pretty format. Should only be used for debugging
+// Not particularly efficient. Would not recommend on larger lists
+func (s *SkipList) Print() {
+	keysLoc := map[string]int{}
+	idx := 1
+	for node := s.head.next[0]; node != nil; node = node.next[0] {
+		keysLoc[string(node.key)] = idx
+		idx++
+	}
+	nodeWidth := 10
+
+	for i := s.levels - 1; i >= 0; i-- {
+		s.printNodeBorder(i, keysLoc, nodeWidth)
+		fmt.Println()
+		s.printNode(i, keysLoc, nodeWidth)
+		fmt.Println()
+		s.printNodeBorder(i, keysLoc, nodeWidth)
+		fmt.Println()
+	}
+}
+
+func (s *SkipList) printNodeBorder(i int, keysLoc map[string]int, nodeWidth int) {
+	nextSlot := 1
+	for node := s.head.next[i]; node != nil; node = node.next[i] {
+		loc := keysLoc[string(node.key)]
+
+		for nextSlot != loc {
+			fmt.Printf(fmt.Sprint("%", nodeWidth, "s"), strings.Repeat(" ", nodeWidth))
+			fmt.Print(" ")
+			nextSlot++
+		}
+
+		fmt.Printf(fmt.Sprint("%", nodeWidth, "s"), strings.Repeat("-", nodeWidth))
+		fmt.Print(" ")
+		nextSlot++
+	}
+}
+
+func (s *SkipList) printNode(i int, keysLoc map[string]int, nodeWidth int) {
+	nextSlot := 1
+	for node := s.head.next[i]; node != nil; node = node.next[i] {
+		loc := keysLoc[string(node.key)]
+
+		keySize := 4
+		key := string(node.key)
+		if len(key) > keySize {
+			key = key[0:keySize]
+		} else if len(key) < keySize {
+			key = fmt.Sprintf(fmt.Sprint("%-", keySize, "s"), key)
+		}
+
+		for nextSlot != loc {
+			fmt.Printf(fmt.Sprint("%", nodeWidth, "s"), strings.Repeat(" ", nodeWidth))
+			fmt.Print(" ")
+			nextSlot++
+		}
+
+		fmt.Printf(fmt.Sprint("%", nodeWidth, "s"), "|   "+key+" |")
+		fmt.Print(" ")
+		nextSlot++
 	}
 }
 

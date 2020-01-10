@@ -12,6 +12,11 @@ func New() *DB {
 	return &DB{memTable: memtable.New()}
 }
 
+// TODO:
+// - add DB name to allow multiple databases
+// - copy keys and values passed as arguments
+// - check key and value size and fail if > threshold
+
 // Get returns the value associated with the key. If key is not found then
 // the value returned is nil
 func (d *DB) Get(key []byte) []byte {
