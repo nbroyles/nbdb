@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/nbroyles/nbdb/internal/memtable"
+	"github.com/nbroyles/nbdb/internal/wal"
 )
 
 // TODO: copy keys and values passed as arguments
@@ -16,6 +17,7 @@ import (
 
 type DB struct {
 	memTable *memtable.MemTable
+	walog    *wal.WAL
 	name     string
 }
 
@@ -110,10 +112,12 @@ func (d *DB) Get(key []byte) []byte {
 
 // Put inserts or updates the value if the key already exists
 func (d *DB) Put(key []byte, value []byte) {
+	d.walog.Write(wal.NewRecord(key, value, false))
 	d.memTable.Put(key, value)
 }
 
 // Deletes the specified key from the data store
 func (d *DB) Delete(key []byte) {
+	d.walog.Write(wal.NewRecord(key, nil, true))
 	d.memTable.Delete(key)
 }
