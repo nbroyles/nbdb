@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// WAL is the structure representing the writeahead log. All updates (incl. deletes)
+// are first written to the writeahead log before being stored anywhere else (i.e. memtable,
+//  sstables). This ensures that upon crash, memtable that was in memory can be regenerated
+// from the writeahead log
 type WAL struct {
 	dbName  string
 	name    string
@@ -15,6 +19,7 @@ type WAL struct {
 	logFile *os.File
 }
 
+// New creates a new writeahead log and returns a reference to it
 func New(dbName string, datadir string) *WAL {
 	name := fmt.Sprintf("wal_%s_%d", dbName, time.Now().UnixNano()/1_000_000_000)
 
@@ -35,6 +40,7 @@ func New(dbName string, datadir string) *WAL {
 	return &WAL{dbName: dbName, name: name, codec: Codec{}, logFile: logFile}
 }
 
+// Write writes the record to the writeahead log
 func (w *WAL) Write(record *Record) {
 	data, err := w.codec.Encode(record)
 	if err != nil {
