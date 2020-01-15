@@ -14,3 +14,18 @@ type Record struct {
 	value []byte
 	rType RecordType
 }
+
+func NewRecord(key []byte, value []byte, delete bool) *Record {
+	var rType RecordType
+	if delete {
+		rType = recordDelete
+	} else {
+		rType = recordUpdate
+	}
+
+	return &Record{
+		key:   key,
+		value: value,
+		rType: rType,
+	}
+}
