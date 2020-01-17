@@ -70,6 +70,35 @@ func TestWAL_Write(t *testing.T) {
 	}
 }
 
+func TestWAL_Size(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "wal_test"
+	dbPath := path.Join(dir, dbName)
+
+	makeDatabase(t, dbPath)
+	defer cleanup(dbPath)
+
+	w := New(dbName, dir)
+
+	sz := uint32(0)
+	sz += writeRecord(t, w, NewRecord([]byte("foo"), []byte("bar"), false))
+	assert.Equal(t, sz, w.Size())
+
+	sz += writeRecord(t, w, NewRecord([]byte("foo2"), []byte("bar2"), false))
+	assert.Equal(t, sz, w.Size())
+}
+
+func writeRecord(t *testing.T, w *WAL, rec *Record) uint32 {
+	data, err := w.codec.Encode(rec)
+	assert.NoError(t, err)
+
+	w.Write(rec)
+
+	return uint32(len(data))
+}
+
 func logExists(t *testing.T, logPath string) bool {
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
 		return false
