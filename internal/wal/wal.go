@@ -17,6 +17,7 @@ type WAL struct {
 	name    string
 	codec   Codec
 	logFile *os.File
+	size    uint32
 }
 
 // New creates a new writeahead log and returns a reference to it
@@ -54,10 +55,17 @@ func (w *WAL) Write(record *Record) {
 		log.Panicf("failed to write data to log: %v", err)
 	}
 
+	// update current size of WAL
+	w.size += uint32(len(data))
+
 	if err := w.logFile.Sync(); err != nil {
 		// TODO: warn here. add logrus to get log levels
 		log.Printf("failed syncing data to disk: %v", err)
 	}
+}
+
+func (w *WAL) Size() uint32 {
+	return w.size
 }
 
 // TODO: Think about restore mechanism for WAL. When to perform? How would it work?
