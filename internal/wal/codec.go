@@ -7,6 +7,8 @@ import (
 	"hash/crc32"
 	"io"
 	"log"
+
+	"github.com/nbroyles/nbdb/internal/storage"
 )
 
 // Responsible for encoding and decoding data sent to and retrieved
@@ -26,14 +28,14 @@ type Codec struct{}
 
 // Encodes provided key, value and record type and returns a byte array
 // ready to be written to the WAL
-func (c *Codec) Encode(record *Record) ([]byte, error) {
-	key := record.key
-	value := record.value
+func (c *Codec) Encode(record *storage.Record) ([]byte, error) {
+	key := record.Key
+	value := record.Value
 
 	// record type byte + key length bytes + variable key bytes + checksum bytes
 	// + (conditionally) value length bytes + (conditionally) variable value bytes
 	totalLength := 1 + 4 + crc32.Size + len(key)
-	if record.rType == recordUpdate {
+	if record.Type == storage.RecordUpdate {
 		totalLength += 4 + len(value)
 	}
 
@@ -42,7 +44,7 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode total record length: %w", err)
 	}
 
-	if err := binary.Write(&buf, binary.BigEndian, int8(record.rType)); err != nil {
+	if err := binary.Write(&buf, binary.BigEndian, int8(record.Type)); err != nil {
 		return nil, fmt.Errorf("failed to encode record type: %w", err)
 	}
 
@@ -56,7 +58,7 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode key: %w", err)
 	}
 
-	if record.rType == recordUpdate {
+	if record.Type == storage.RecordUpdate {
 		if err := binary.Write(&buf, binary.BigEndian, int32(len(value))); err != nil {
 			return nil, fmt.Errorf("failed to encode value length: %w", err)
 		}
@@ -78,7 +80,7 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 
 // Decode takes a record from the WAL and decodes it into a key, value
 // and record type
-func (c *Codec) Decode(record []byte) (*Record, error) {
+func (c *Codec) Decode(record []byte) (*storage.Record, error) {
 	reader := bytes.NewReader(record)
 
 	var totalLen uint32
@@ -109,7 +111,7 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 	if err := binary.Read(dataReader, binary.BigEndian, &rawType); err != nil {
 		return nil, fmt.Errorf("failed to read record type: %w", err)
 	}
-	rType := RecordType(rawType)
+	rType := storage.RecordType(rawType)
 
 	var keyLen uint32
 	if err := binary.Read(dataReader, binary.BigEndian, &keyLen); err != nil {
@@ -122,7 +124,7 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 	}
 
 	var value []byte
-	if rType == recordUpdate {
+	if rType == storage.RecordUpdate {
 		var valueLen uint32
 		if err := binary.Read(dataReader, binary.BigEndian, &valueLen); err != nil {
 			return nil, fmt.Errorf("failed to read value length: %w", err)
@@ -134,9 +136,9 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 		}
 	}
 
-	return &Record{
-		key:   key,
-		value: value,
-		rType: rType,
+	return &storage.Record{
+		Key:   key,
+		Value: value,
+		Type:  rType,
 	}, nil
 }

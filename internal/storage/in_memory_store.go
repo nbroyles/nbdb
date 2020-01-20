@@ -13,4 +13,8 @@ type InMemoryStore interface {
 	// Deletes the specified key from the skip list. Returns true if
 	// key was removed and false if key was not present
 	Delete(key []byte) bool
+
+	// InternalIterator returns an iterator that can be used to iterate over each element
+	// in the store. Primarily useful when flushing structure to an sstable on disk
+	InternalIterator() InternalIterator
 }

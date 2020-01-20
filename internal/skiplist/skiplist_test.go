@@ -14,18 +14,18 @@ import (
 func TestSkipList_RoundTrip(t *testing.T) {
 	list := New(1)
 
-	put(t, list, "howdy", "time")
+	put(list, "howdy", "time")
 	assertSkipListValue(t, list, "howdy", "time")
 }
 
 func TestSkipList_Put(t *testing.T) {
 	list := New(1)
 
-	put(t, list, "a", "lot")
-	put(t, list, "of", "keys")
-	put(t, list, "into", "this")
-	put(t, list, "bad", "boy")
-	put(t, list, "!!!!", "!!!!")
+	put(list, "a", "lot")
+	put(list, "of", "keys")
+	put(list, "into", "this")
+	put(list, "bad", "boy")
+	put(list, "!!!!", "!!!!")
 
 	assertSkipListValue(t, list, "a", "lot")
 	assertSkipListValue(t, list, "of", "keys")
@@ -37,7 +37,7 @@ func TestSkipList_Put(t *testing.T) {
 func TestSkipList_Delete(t *testing.T) {
 	list := New(1)
 
-	put(t, list, "foo", "bar")
+	put(list, "foo", "bar")
 
 	assert.True(t, list.Delete([]byte("foo")))
 
@@ -51,10 +51,10 @@ func TestSkipList_Delete(t *testing.T) {
 func TestSkipList_Update(t *testing.T) {
 	list := New(1)
 
-	put(t, list, "foo", "bar")
+	put(list, "foo", "bar")
 	assertSkipListValue(t, list, "foo", "bar")
 
-	put(t, list, "foo", "baz")
+	put(list, "foo", "baz")
 	assertSkipListValue(t, list, "foo", "baz")
 }
 
@@ -76,8 +76,16 @@ func TestSkipList_UpdateNonExistentKey(t *testing.T) {
 	})
 }
 
-func put(t *testing.T, list *SkipList, key string, value string) {
-	list.Put([]byte(key), []byte(value))
+func TestSkipList_InternalIterator(t *testing.T) {
+	list := New(1)
+
+	put(list, "howdy", "time")
+	put(list, "awww", "yeah")
+
+	iter := list.InternalIterator()
+
+	assertNextRecordEquals(t, iter, "awww", "yeah", false)
+	assertNextRecordEquals(t, iter, "howdy", "time", false)
 }
 
 func assertSkipListValue(t *testing.T, list *SkipList, key string, value string) {

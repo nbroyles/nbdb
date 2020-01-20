@@ -5,6 +5,8 @@ import (
 	"os"
 	"path"
 
+	"github.com/nbroyles/nbdb/internal/storage"
+
 	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/nbroyles/nbdb/internal/wal"
 )
@@ -112,12 +114,12 @@ func (d *DB) Get(key []byte) []byte {
 
 // Put inserts or updates the value if the key already exists
 func (d *DB) Put(key []byte, value []byte) {
-	d.walog.Write(wal.NewRecord(key, value, false))
+	d.walog.Write(storage.NewRecord(key, value, false))
 	d.memTable.Put(key, value)
 }
 
 // Deletes the specified key from the data store
 func (d *DB) Delete(key []byte) {
-	d.walog.Write(wal.NewRecord(key, nil, true))
+	d.walog.Write(storage.NewRecord(key, nil, true))
 	d.memTable.Delete(key)
 }

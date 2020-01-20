@@ -16,9 +16,10 @@ const maxLevels = 32
 
 // Node represents a node in the SkipList structure
 type Node struct {
-	next  []*Node
-	key   []byte
-	value []byte
+	next    []*Node
+	key     []byte
+	value   []byte
+	deleted bool
 }
 
 // SkipList is an implementation of a data structure that provides
@@ -62,7 +63,11 @@ func (s *SkipList) get(key []byte) (bool, []byte) {
 		for ; c.next[i] != nil; c = c.next[i] {
 			switch bytes.Compare(c.next[i].key, key) {
 			case 0:
-				return true, c.next[i].value
+				if c.next[i].deleted {
+					return false, nil
+				} else {
+					return true, c.next[i].value
+				}
 			case 1: // next key is greater than the key we're searching for
 				break rightTraversal
 			}
@@ -94,8 +99,8 @@ func (s *SkipList) Delete(key []byte) bool {
 	removed := false
 	for i := s.levels - 1; i >= 0; i-- {
 		for ; c.next[i] != nil; c = c.next[i] {
-			if bytes.Equal(c.next[i].key, key) {
-				c.next[i] = c.next[i].next[i]
+			if bytes.Equal(c.next[i].key, key) && !c.next[i].deleted {
+				c.next[i].deleted = true
 				removed = true
 				break
 			}
@@ -112,6 +117,7 @@ func (s *SkipList) update(key []byte, value []byte) {
 		for ; c.next[i] != nil; c = c.next[i] {
 			if bytes.Equal(c.next[i].key, key) {
 				c.next[i].value = value
+				c.next[i].deleted = false
 				updated = true
 				break
 			}
@@ -130,7 +136,7 @@ func (s *SkipList) insert(key []byte, value []byte) {
 		s.levels = levels
 	}
 
-	newNode := &Node{next: make([]*Node, levels), key: key, value: value}
+	newNode := &Node{next: make([]*Node, levels), key: key, value: value, deleted: false}
 
 	c := s.head
 	for i := s.levels - 1; i >= 0; i-- {
@@ -153,6 +159,7 @@ func (s *SkipList) insert(key []byte, value []byte) {
 
 // Print prints skip list in a pretty format. Should only be used for debugging
 // Not particularly efficient. Would not recommend on larger lists
+// TODO: represent deleted keys
 func (s *SkipList) Print() {
 	keysLoc := map[string]int{}
 	idx := 1
@@ -227,4 +234,8 @@ func (s *SkipList) generateLevels() int {
 	}
 
 	return levels
+}
+
+func (s *SkipList) InternalIterator() storage.InternalIterator {
+	return NewIterator(s)
 }
