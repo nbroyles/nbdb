@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"github.com/nbroyles/nbdb/internal/storage"
 )
 
 // WAL is the structure representing the writeahead log. All updates (incl. deletes)
@@ -42,7 +44,7 @@ func New(dbName string, datadir string) *WAL {
 }
 
 // Write writes the record to the writeahead log
-func (w *WAL) Write(record *Record) {
+func (w *WAL) Write(record *storage.Record) {
 	data, err := w.codec.Encode(record)
 	if err != nil {
 		log.Panicf("failed encoding data to write to log: %v", err)

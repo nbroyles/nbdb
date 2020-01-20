@@ -8,6 +8,8 @@ import (
 	"path"
 	"testing"
 
+	"github.com/nbroyles/nbdb/internal/storage"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,11 +41,11 @@ func TestWAL_Write(t *testing.T) {
 
 	w := New(dbName, dir)
 
-	records := []*Record{
-		NewRecord([]byte("foo"), []byte("bar"), false),
-		NewRecord([]byte("foo"), nil, true),
-		NewRecord([]byte("foo"), []byte("baz"), false),
-		NewRecord([]byte("oooooh"), []byte("wweeee"), false),
+	records := []*storage.Record{
+		storage.NewRecord([]byte("foo"), []byte("bar"), false),
+		storage.NewRecord([]byte("foo"), nil, true),
+		storage.NewRecord([]byte("foo"), []byte("baz"), false),
+		storage.NewRecord([]byte("oooooh"), []byte("wweeee"), false),
 	}
 	for _, record := range records {
 		w.Write(record)
@@ -83,14 +85,14 @@ func TestWAL_Size(t *testing.T) {
 	w := New(dbName, dir)
 
 	sz := uint32(0)
-	sz += writeRecord(t, w, NewRecord([]byte("foo"), []byte("bar"), false))
+	sz += writeRecord(t, w, storage.NewRecord([]byte("foo"), []byte("bar"), false))
 	assert.Equal(t, sz, w.Size())
 
-	sz += writeRecord(t, w, NewRecord([]byte("foo2"), []byte("bar2"), false))
+	sz += writeRecord(t, w, storage.NewRecord([]byte("foo2"), []byte("bar2"), false))
 	assert.Equal(t, sz, w.Size())
 }
 
-func writeRecord(t *testing.T, w *WAL, rec *Record) uint32 {
+func writeRecord(t *testing.T, w *WAL, rec *storage.Record) uint32 {
 	data, err := w.codec.Encode(rec)
 	assert.NoError(t, err)
 

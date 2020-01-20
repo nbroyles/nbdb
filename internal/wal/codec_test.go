@@ -4,51 +4,53 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/nbroyles/nbdb/internal/storage"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCodec_RoundTripUpdate(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&Record{
-		key:   []byte("foo"),
-		value: []byte("bar"),
-		rType: recordUpdate,
+	data, err := codec.Encode(&storage.Record{
+		Key:   []byte("foo"),
+		Value: []byte("bar"),
+		Type:  storage.RecordUpdate,
 	})
 	assert.NoError(t, err)
 
 	record, err := codec.Decode(data)
 	assert.NoError(t, err)
 
-	assert.Equal(t, Record{
-		key:   []byte("foo"),
-		value: []byte("bar"),
-		rType: recordUpdate,
+	assert.Equal(t, storage.Record{
+		Key:   []byte("foo"),
+		Value: []byte("bar"),
+		Type:  storage.RecordUpdate,
 	}, *record)
 }
 
 func TestCodec_RoundTripDelete(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&Record{
-		key:   []byte("foo"),
-		rType: recordDelete,
+	data, err := codec.Encode(&storage.Record{
+		Key:  []byte("foo"),
+		Type: storage.RecordDelete,
 	})
 	assert.NoError(t, err)
 
 	record, err := codec.Decode(data)
 	assert.NoError(t, err)
 
-	assert.Equal(t, Record{
-		key:   []byte("foo"),
-		rType: recordDelete,
+	assert.Equal(t, storage.Record{
+		Key:  []byte("foo"),
+		Type: storage.RecordDelete,
 	}, *record)
 }
 
 func TestCodec_ChecksumFail(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&Record{
-		key:   []byte("foo"),
-		value: []byte("bar"),
-		rType: recordUpdate,
+	data, err := codec.Encode(&storage.Record{
+		Key:   []byte("foo"),
+		Value: []byte("bar"),
+		Type:  storage.RecordUpdate,
 	})
 	assert.NoError(t, err)
 
