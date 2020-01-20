@@ -76,6 +76,18 @@ func TestSkipList_UpdateNonExistentKey(t *testing.T) {
 	})
 }
 
+func TestSkipList_InternalIterator(t *testing.T) {
+	list := New(1)
+
+	put(list, "howdy", "time")
+	put(list, "awww", "yeah")
+
+	iter := list.InternalIterator()
+
+	assertNextRecordEquals(t, iter, "awww", "yeah", false)
+	assertNextRecordEquals(t, iter, "howdy", "time", false)
+}
+
 func assertSkipListValue(t *testing.T, list *SkipList, key string, value string) {
 	ok, actual := list.Get([]byte(key))
 

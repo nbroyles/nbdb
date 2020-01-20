@@ -235,3 +235,7 @@ func (s *SkipList) generateLevels() int {
 
 	return levels
 }
+
+func (s *SkipList) InternalIterator() storage.InternalIterator {
+	return NewIterator(s)
+}
