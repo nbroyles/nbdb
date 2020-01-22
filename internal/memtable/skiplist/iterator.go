@@ -3,6 +3,8 @@ package skiplist
 import (
 	"log"
 
+	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
+
 	"github.com/nbroyles/nbdb/internal/storage"
 )
 
@@ -11,7 +13,7 @@ type Iterator struct {
 	pointer *Node
 }
 
-func NewIterator(list *SkipList) storage.InternalIterator {
+func NewIterator(list *SkipList) interfaces.InternalIterator {
 	return &Iterator{list: list, pointer: list.head}
 }
 
@@ -30,4 +32,4 @@ func (i *Iterator) Next() *storage.Record {
 	return storage.NewRecord(node.key, node.value, node.deleted)
 }
 
-var _ storage.InternalIterator = &Iterator{}
+var _ interfaces.InternalIterator = &Iterator{}

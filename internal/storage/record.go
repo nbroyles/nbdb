@@ -14,6 +14,12 @@ type Record struct {
 	Type  RecordType
 }
 
+// RecordPointer is a pointer to a Record on disk
+type RecordPointer struct {
+	StartByte uint32
+	Length    uint32
+}
+
 func NewRecord(key []byte, value []byte, delete bool) *Record {
 	var rType RecordType
 	if delete {

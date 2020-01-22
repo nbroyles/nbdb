@@ -1,4 +1,4 @@
-package wal
+package storage
 
 import (
 	"bytes"
@@ -7,15 +7,13 @@ import (
 	"hash/crc32"
 	"io"
 	"log"
-
-	"github.com/nbroyles/nbdb/internal/storage"
 )
 
 // Responsible for encoding and decoding data sent to and retrieved
-// from the WAL
+// from disk
 type Codec struct{}
 
-// WAL record format:
+// Encoding record format:
 // - total record length
 // - record type (put, delete)
 // - key length (uint32 == 4 bytes)
@@ -28,24 +26,20 @@ type Codec struct{}
 
 // Encodes provided key, value and record type and returns a byte array
 // ready to be written to the WAL
-func (c *Codec) Encode(record *storage.Record) ([]byte, error) {
+func (c *Codec) Encode(record *Record) ([]byte, error) {
 	key := record.Key
 	value := record.Value
 
 	// record type byte + key length bytes + variable key bytes + checksum bytes
 	// + (conditionally) value length bytes + (conditionally) variable value bytes
 	totalLength := 1 + 4 + crc32.Size + len(key)
-	if record.Type == storage.RecordUpdate {
+	if record.Type == RecordUpdate {
 		totalLength += 4 + len(value)
 	}
 
 	buf := bytes.Buffer{}
 	if err := binary.Write(&buf, binary.BigEndian, uint32(totalLength)); err != nil {
 		return nil, fmt.Errorf("failed to encode total record length: %w", err)
-	}
-
-	if err := binary.Write(&buf, binary.BigEndian, int8(record.Type)); err != nil {
-		return nil, fmt.Errorf("failed to encode record type: %w", err)
 	}
 
 	if err := binary.Write(&buf, binary.BigEndian, int32(len(key))); err != nil {
@@ -58,7 +52,11 @@ func (c *Codec) Encode(record *storage.Record) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode key: %w", err)
 	}
 
-	if record.Type == storage.RecordUpdate {
+	if err := binary.Write(&buf, binary.BigEndian, int8(record.Type)); err != nil {
+		return nil, fmt.Errorf("failed to encode record type: %w", err)
+	}
+
+	if record.Type == RecordUpdate {
 		if err := binary.Write(&buf, binary.BigEndian, int32(len(value))); err != nil {
 			return nil, fmt.Errorf("failed to encode value length: %w", err)
 		}
@@ -80,7 +78,7 @@ func (c *Codec) Encode(record *storage.Record) ([]byte, error) {
 
 // Decode takes a record from the WAL and decodes it into a key, value
 // and record type
-func (c *Codec) Decode(record []byte) (*storage.Record, error) {
+func (c *Codec) Decode(record []byte) (*Record, error) {
 	reader := bytes.NewReader(record)
 
 	var totalLen uint32
@@ -107,12 +105,6 @@ func (c *Codec) Decode(record []byte) (*storage.Record, error) {
 
 	dataReader := bytes.NewReader(actualRecord)
 
-	var rawType uint8
-	if err := binary.Read(dataReader, binary.BigEndian, &rawType); err != nil {
-		return nil, fmt.Errorf("failed to read record type: %w", err)
-	}
-	rType := storage.RecordType(rawType)
-
 	var keyLen uint32
 	if err := binary.Read(dataReader, binary.BigEndian, &keyLen); err != nil {
 		return nil, fmt.Errorf("failed to read key length: %w", err)
@@ -123,8 +115,14 @@ func (c *Codec) Decode(record []byte) (*storage.Record, error) {
 		return nil, fmt.Errorf("failed to read key: %w", err)
 	}
 
+	var rawType uint8
+	if err := binary.Read(dataReader, binary.BigEndian, &rawType); err != nil {
+		return nil, fmt.Errorf("failed to read record type: %w", err)
+	}
+	rType := RecordType(rawType)
+
 	var value []byte
-	if rType == storage.RecordUpdate {
+	if rType == RecordUpdate {
 		var valueLen uint32
 		if err := binary.Read(dataReader, binary.BigEndian, &valueLen); err != nil {
 			return nil, fmt.Errorf("failed to read value length: %w", err)
@@ -136,9 +134,41 @@ func (c *Codec) Decode(record []byte) (*storage.Record, error) {
 		}
 	}
 
-	return &storage.Record{
+	return &Record{
 		Key:   key,
 		Value: value,
 		Type:  rType,
+	}, nil
+}
+
+func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
+	buf := bytes.Buffer{}
+	if err := binary.Write(&buf, binary.BigEndian, pointer.StartByte); err != nil {
+		return nil, fmt.Errorf("failed to encode start byte of pointer: %w", err)
+	}
+
+	if err := binary.Write(&buf, binary.BigEndian, pointer.Length); err != nil {
+		return nil, fmt.Errorf("failed to encode lenght of record being pointer to: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (c *Codec) DecodePointer(data []byte) (*RecordPointer, error) {
+	reader := bytes.NewReader(data)
+
+	var startByte uint32
+	if err := binary.Read(reader, binary.BigEndian, &startByte); err != nil {
+		return nil, fmt.Errorf("failed to decode start byte for pointer record: %w", err)
+	}
+
+	var length uint32
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("failed to decode length for pointer record: %w", err)
+	}
+
+	return &RecordPointer{
+		StartByte: startByte,
+		Length:    length,
 	}, nil
 }

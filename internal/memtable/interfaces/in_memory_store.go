@@ -1,4 +1,4 @@
-package storage
+package interfaces
 
 // InMemoryStore is to be implemented by any data structure that's to be used as the
 // in memory store for the MemTable.

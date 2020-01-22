@@ -1,56 +1,54 @@
-package wal
+package storage
 
 import (
 	"encoding/binary"
 	"testing"
-
-	"github.com/nbroyles/nbdb/internal/storage"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCodec_RoundTripUpdate(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&storage.Record{
+	data, err := codec.Encode(&Record{
 		Key:   []byte("foo"),
 		Value: []byte("bar"),
-		Type:  storage.RecordUpdate,
+		Type:  RecordUpdate,
 	})
 	assert.NoError(t, err)
 
 	record, err := codec.Decode(data)
 	assert.NoError(t, err)
 
-	assert.Equal(t, storage.Record{
+	assert.Equal(t, Record{
 		Key:   []byte("foo"),
 		Value: []byte("bar"),
-		Type:  storage.RecordUpdate,
+		Type:  RecordUpdate,
 	}, *record)
 }
 
 func TestCodec_RoundTripDelete(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&storage.Record{
+	data, err := codec.Encode(&Record{
 		Key:  []byte("foo"),
-		Type: storage.RecordDelete,
+		Type: RecordDelete,
 	})
 	assert.NoError(t, err)
 
 	record, err := codec.Decode(data)
 	assert.NoError(t, err)
 
-	assert.Equal(t, storage.Record{
+	assert.Equal(t, Record{
 		Key:  []byte("foo"),
-		Type: storage.RecordDelete,
+		Type: RecordDelete,
 	}, *record)
 }
 
 func TestCodec_ChecksumFail(t *testing.T) {
 	codec := Codec{}
-	data, err := codec.Encode(&storage.Record{
+	data, err := codec.Encode(&Record{
 		Key:   []byte("foo"),
 		Value: []byte("bar"),
-		Type:  storage.RecordUpdate,
+		Type:  RecordUpdate,
 	})
 	assert.NoError(t, err)
 
@@ -63,7 +61,7 @@ func TestCodec_ChecksumFail(t *testing.T) {
 		data[csStart+i] = csBytes[i]
 	}
 
-	assert.PanicsWithValue(t, "expected checksum of WAL record does not match! expected=12, actual=2211583973", func() {
+	assert.PanicsWithValue(t, "expected checksum of WAL record does not match! expected=12, actual=538011314", func() {
 		_, _ = codec.Decode(data)
 	})
 }
