@@ -3,12 +3,13 @@ package memtable
 import (
 	"time"
 
-	"github.com/nbroyles/nbdb/internal/skiplist"
-	"github.com/nbroyles/nbdb/internal/storage"
+	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
+
+	"github.com/nbroyles/nbdb/internal/memtable/skiplist"
 )
 
 type MemTable struct {
-	memStore storage.InMemoryStore
+	memStore interfaces.InMemoryStore
 }
 
 func New() *MemTable {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nbroyles/nbdb/internal/storage"
+	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 )
 
 // TODO: make configurable?
@@ -36,7 +36,7 @@ type SkipList struct {
 	levels int
 }
 
-var _ storage.InMemoryStore = &SkipList{}
+var _ interfaces.InMemoryStore = &SkipList{}
 
 func New(seed int64) *SkipList {
 	rand.Seed(seed)
@@ -236,6 +236,6 @@ func (s *SkipList) generateLevels() int {
 	return levels
 }
 
-func (s *SkipList) InternalIterator() storage.InternalIterator {
+func (s *SkipList) InternalIterator() interfaces.InternalIterator {
 	return NewIterator(s)
 }

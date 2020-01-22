@@ -1,4 +1,6 @@
-package storage
+package interfaces
+
+import "github.com/nbroyles/nbdb/internal/storage"
 
 // InternalIterator is an interface that allows us to iterate over every element in the
 // memtable. Useful for flushing memtable to disk. Not threadsafe so make use of while
@@ -8,5 +10,5 @@ type InternalIterator interface {
 	HasNext() bool
 
 	// Returns the next record in the iterator
-	Next() *Record
+	Next() *storage.Record
 }

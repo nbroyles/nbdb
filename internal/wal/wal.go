@@ -17,16 +17,16 @@ import (
 type WAL struct {
 	dbName  string
 	name    string
-	codec   Codec
+	codec   storage.Codec
 	logFile *os.File
 	size    uint32
 }
 
 // New creates a new writeahead log and returns a reference to it
-func New(dbName string, datadir string) *WAL {
+func New(dbName string, dataDir string) *WAL {
 	name := fmt.Sprintf("wal_%s_%d", dbName, time.Now().UnixNano()/1_000_000_000)
 
-	logPath := path.Join(datadir, dbName, name)
+	logPath := path.Join(dataDir, dbName, name)
 	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
 		if err != nil {
 			log.Panicf("failure checking for WAL existence: %v", err)
@@ -40,7 +40,7 @@ func New(dbName string, datadir string) *WAL {
 		log.Panicf("could not create WAL file: %v", err)
 	}
 
-	return &WAL{dbName: dbName, name: name, codec: Codec{}, logFile: logFile}
+	return &WAL{dbName: dbName, name: name, codec: storage.Codec{}, logFile: logFile}
 }
 
 // Write writes the record to the writeahead log
