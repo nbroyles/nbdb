@@ -77,7 +77,7 @@ func (s *Builder) WriteLevel0Table() {
 
 		// Create index entry if reached threshold for number of written records
 		if recWritten%s.indexPerRecord == 0 {
-			indices[string(rec.Key)] = storage.RecordPointer{StartByte: bytesWritten, Length: uint32(len(bytes))}
+			indices[string(rec.Key)] = storage.RecordPointer{Key: rec.Key, StartByte: bytesWritten, Length: uint32(len(bytes))}
 			order = append(order, string(rec.Key))
 		}
 
@@ -85,7 +85,7 @@ func (s *Builder) WriteLevel0Table() {
 	}
 
 	indexStart := bytesWritten
-	indexLen := 0
+	firstLen := 0
 	// Write index blocks in correct order
 	for _, key := range order {
 		ptr := indices[key]
@@ -96,14 +96,16 @@ func (s *Builder) WriteLevel0Table() {
 
 		s.write(bytes)
 
-		indexLen += len(bytes)
+		// Keep length of first index block written for use in footer pointer
+		if firstLen == 0 {
+			firstLen += len(bytes)
+		}
 	}
 
 	// Write footer
-	// Footer just a RecordPointer at the moment making it a fixed 8 bytes
-	bytes, err := s.codec.EncodePointer(&storage.RecordPointer{
-		StartByte: indexStart,
-		Length:    uint32(indexLen),
+	bytes, err := s.codec.EncodeFooter(&storage.Footer{
+		IndexStartByte: indexStart,
+		Length:         uint32(firstLen),
 	})
 	if err != nil {
 		log.Panicf("could not encode footer pointer record: %v", err)

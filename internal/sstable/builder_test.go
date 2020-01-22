@@ -2,6 +2,7 @@ package sstable
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/nbroyles/nbdb/internal/memtable"
@@ -28,14 +29,23 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 	data := buf.Bytes()
 	codec := builder.codec
 
-	idx1Ptr := decodePointer(t, codec, data, uint32(len(data)-pointerLen), uint32(len(data)))
-	rec1Ptr := decodePointer(t, codec, data, idx1Ptr.StartByte, idx1Ptr.StartByte+pointerLen)
-	rec2Ptr := decodePointer(t, codec, data, idx1Ptr.StartByte+pointerLen, idx1Ptr.StartByte+(pointerLen*2))
+	footer := decodeFooter(t, codec, data, uint32(len(data)-pointerLen), uint32(len(data)))
+	idx1 := decodePointer(t, codec, data, footer.IndexStartByte, footer.IndexStartByte+footer.Length)
 
-	rec1 := decodeRecord(t, codec, data, rec1Ptr.StartByte, rec1Ptr.StartByte+rec1Ptr.Length)
+	// Get the key length since we don't have a pointer w/ byte length to the first index in the list.
+	// Now need to calculate how big next index is so that we can read it
+	idx2Start := footer.IndexStartByte + footer.Length
+	var keyLen uint32
+	err := binary.Read(bytes.NewReader(data[idx2Start:idx2Start+4]), binary.BigEndian, &keyLen)
+	assert.NoError(t, err)
+	idx2Size := 4 + keyLen + 4 + 4 // len(key) + key + recordStartByte + recordLen
+
+	idx2 := decodePointer(t, codec, data, idx2Start, idx2Start+idx2Size)
+
+	rec1 := decodeRecord(t, codec, data, idx1.StartByte, idx1.StartByte+idx1.Length)
 	assert.Equal(t, rec1, storage.NewRecord([]byte("baz"), []byte("bax"), false))
 
-	rec2 := decodeRecord(t, codec, data, rec2Ptr.StartByte, rec2Ptr.StartByte+rec2Ptr.Length)
+	rec2 := decodeRecord(t, codec, data, idx2.StartByte, idx2.StartByte+idx2.Length)
 	assert.Equal(t, rec2, storage.NewRecord([]byte("foo"), []byte("bar"), false))
 }
 
@@ -51,4 +61,11 @@ func decodeRecord(t *testing.T, codec *storage.Codec, bytes []byte, start uint32
 	assert.NoError(t, err)
 
 	return rec
+}
+
+func decodeFooter(t *testing.T, codec *storage.Codec, bytes []byte, start uint32, stop uint32) *storage.Footer {
+	ptr, err := codec.DecodeFooter(bytes[start:stop])
+	assert.NoError(t, err)
+
+	return ptr
 }

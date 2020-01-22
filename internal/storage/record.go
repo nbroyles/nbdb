@@ -16,8 +16,16 @@ type Record struct {
 
 // RecordPointer is a pointer to a Record on disk
 type RecordPointer struct {
+	Key       []byte
 	StartByte uint32
 	Length    uint32
+}
+
+// Footer is the last entry in an sstable. It points to the first index in the list
+// of indices within the file
+type Footer struct {
+	IndexStartByte uint32
+	Length         uint32
 }
 
 func NewRecord(key []byte, value []byte, delete bool) *Record {

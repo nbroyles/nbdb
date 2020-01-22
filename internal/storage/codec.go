@@ -42,7 +42,7 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode total record length: %w", err)
 	}
 
-	if err := binary.Write(&buf, binary.BigEndian, int32(len(key))); err != nil {
+	if err := binary.Write(&buf, binary.BigEndian, uint32(len(key))); err != nil {
 		return nil, fmt.Errorf("failed to encode key length: %w", err)
 	}
 
@@ -143,6 +143,17 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 
 func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
 	buf := bytes.Buffer{}
+
+	if err := binary.Write(&buf, binary.BigEndian, uint32(len(pointer.Key))); err != nil {
+		return nil, fmt.Errorf("failed to encode key length: %w", err)
+	}
+
+	if n, err := buf.Write(pointer.Key); n != len(pointer.Key) {
+		return nil, fmt.Errorf("failed to write full key to buffer. wrote=%d, len=%d", n, len(pointer.Key))
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to encode key: %w", err)
+	}
+
 	if err := binary.Write(&buf, binary.BigEndian, pointer.StartByte); err != nil {
 		return nil, fmt.Errorf("failed to encode start byte of pointer: %w", err)
 	}
@@ -157,6 +168,16 @@ func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
 func (c *Codec) DecodePointer(data []byte) (*RecordPointer, error) {
 	reader := bytes.NewReader(data)
 
+	var keyLen uint32
+	if err := binary.Read(reader, binary.BigEndian, &keyLen); err != nil {
+		return nil, fmt.Errorf("failed to read key length: %w", err)
+	}
+
+	key := make([]byte, keyLen)
+	if _, err := io.ReadFull(reader, key); err != nil {
+		return nil, fmt.Errorf("failed to read key: %w", err)
+	}
+
 	var startByte uint32
 	if err := binary.Read(reader, binary.BigEndian, &startByte); err != nil {
 		return nil, fmt.Errorf("failed to decode start byte for pointer record: %w", err)
@@ -168,7 +189,40 @@ func (c *Codec) DecodePointer(data []byte) (*RecordPointer, error) {
 	}
 
 	return &RecordPointer{
+		Key:       key,
 		StartByte: startByte,
 		Length:    length,
+	}, nil
+}
+
+func (c *Codec) EncodeFooter(footer *Footer) ([]byte, error) {
+	buf := bytes.Buffer{}
+	if err := binary.Write(&buf, binary.BigEndian, footer.IndexStartByte); err != nil {
+		return nil, fmt.Errorf("failed to encode index start byte for footer: %w", err)
+	}
+
+	if err := binary.Write(&buf, binary.BigEndian, footer.Length); err != nil {
+		return nil, fmt.Errorf("failed to encode length for footer: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (c *Codec) DecodeFooter(data []byte) (*Footer, error) {
+	reader := bytes.NewReader(data)
+
+	var startByte uint32
+	if err := binary.Read(reader, binary.BigEndian, &startByte); err != nil {
+		return nil, fmt.Errorf("failed to decode index start byte for footer: %w", err)
+	}
+
+	var length uint32
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("failed to decode length for footer: %w", err)
+	}
+
+	return &Footer{
+		IndexStartByte: startByte,
+		Length:         length,
 	}, nil
 }
