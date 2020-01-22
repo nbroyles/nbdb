@@ -10,10 +10,10 @@ import (
 )
 
 // Responsible for encoding and decoding data sent to and retrieved
-// from the WAL
+// from disk
 type Codec struct{}
 
-// WAL record format:
+// Encoding record format:
 // - total record length
 // - record type (put, delete)
 // - key length (uint32 == 4 bytes)
@@ -138,5 +138,37 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 		Key:   key,
 		Value: value,
 		Type:  rType,
+	}, nil
+}
+
+func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
+	buf := bytes.Buffer{}
+	if err := binary.Write(&buf, binary.BigEndian, pointer.StartByte); err != nil {
+		return nil, fmt.Errorf("failed to encode start byte of pointer: %w", err)
+	}
+
+	if err := binary.Write(&buf, binary.BigEndian, pointer.Length); err != nil {
+		return nil, fmt.Errorf("failed to encode lenght of record being pointer to: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (c *Codec) DecodePointer(data []byte) (*RecordPointer, error) {
+	reader := bytes.NewReader(data)
+
+	var startByte uint32
+	if err := binary.Read(reader, binary.BigEndian, &startByte); err != nil {
+		return nil, fmt.Errorf("failed to decode start byte for pointer record: %w", err)
+	}
+
+	var length uint32
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("failed to decode length for pointer record: %w", err)
+	}
+
+	return &RecordPointer{
+		StartByte: startByte,
+		Length:    length,
 	}, nil
 }

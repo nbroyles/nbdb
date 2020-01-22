@@ -31,3 +31,7 @@ func (m *MemTable) Put(key []byte, value []byte) {
 func (m *MemTable) Delete(key []byte) {
 	m.memStore.Delete(key)
 }
+
+func (m *MemTable) InternalIterator() interfaces.InternalIterator {
+	return m.memStore.InternalIterator()
+}
