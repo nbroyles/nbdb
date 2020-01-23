@@ -1,11 +1,9 @@
 package skiplist
 
 import (
-	"log"
-
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
-
 	"github.com/nbroyles/nbdb/internal/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 type Iterator struct {

@@ -3,13 +3,13 @@ package sstable
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"time"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 	"github.com/nbroyles/nbdb/internal/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 // Builder is a structure that can take an iterator from a memtable data structure and use
