@@ -1,11 +1,7 @@
 package sstable
 
 import (
-	"fmt"
 	"io"
-	"os"
-	"path"
-	"time"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 	"github.com/nbroyles/nbdb/internal/storage"
@@ -33,27 +29,6 @@ func NewBuilder(iter interfaces.InternalIterator, writer io.Writer) *Builder {
 
 func newBuilder(iter interfaces.InternalIterator, writer io.Writer, indexPerRecord int) *Builder {
 	return &Builder{iter: iter, codec: &storage.Codec{}, writer: writer, indexPerRecord: indexPerRecord}
-}
-
-// CreateFile creates a level0 sstable file that can be used by the Builder
-func CreateFile(dbName string, dataDir string) *os.File {
-	name := fmt.Sprintf("level0_%s_%d", dbName, time.Now().UnixNano()/1_000_000_000)
-
-	tablePath := path.Join(dataDir, dbName, name)
-	if _, err := os.Stat(tablePath); !os.IsNotExist(err) {
-		if err != nil {
-			log.Panicf("failure checking for level 0 sstable existence: %v", err)
-		} else {
-			log.Panicf("attempting to create new level 0 sstable %s but already exists", tablePath)
-		}
-	}
-
-	file, err := os.Create(tablePath)
-	if err != nil {
-		log.Panicf("could not create level 0 sstable file: %v", err)
-	}
-
-	return file
 }
 
 // TODO: crashing while writing -- what to do?

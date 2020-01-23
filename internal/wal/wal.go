@@ -23,6 +23,7 @@ type WAL struct {
 }
 
 // New creates a new writeahead log and returns a reference to it
+// TODO: refactor to use util.CreateFile
 func New(dbName string, dataDir string) *WAL {
 	name := fmt.Sprintf("wal_%s_%d", dbName, time.Now().UnixNano()/1_000_000_000)
 
