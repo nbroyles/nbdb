@@ -5,9 +5,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/nbroyles/nbdb/internal/storage"
-
 	"github.com/nbroyles/nbdb/internal/memtable"
+	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/internal/wal"
 )
 

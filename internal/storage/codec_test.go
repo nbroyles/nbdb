@@ -61,7 +61,5 @@ func TestCodec_ChecksumFail(t *testing.T) {
 		data[csStart+i] = csBytes[i]
 	}
 
-	assert.PanicsWithValue(t, "expected checksum of WAL record does not match! expected=12, actual=538011314", func() {
-		_, _ = codec.Decode(data)
-	})
+	assert.Panics(t, func() { _, _ = codec.Decode(data) })
 }

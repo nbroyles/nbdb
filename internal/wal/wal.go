@@ -2,12 +2,12 @@ package wal
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"time"
 
 	"github.com/nbroyles/nbdb/internal/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 // WAL is the structure representing the writeahead log. All updates (incl. deletes)

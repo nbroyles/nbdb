@@ -3,12 +3,12 @@ package skiplist
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO: make configurable?

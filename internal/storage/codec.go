@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Responsible for encoding and decoding data sent to and retrieved
