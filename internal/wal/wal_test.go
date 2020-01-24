@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/nbroyles/nbdb/internal/storage"
-
+	"github.com/nbroyles/nbdb/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,11 +20,11 @@ func TestNew(t *testing.T) {
 	dbName := "wal_test"
 	dbPath := path.Join(dir, dbName)
 
-	makeDatabase(t, dbPath)
-	defer cleanup(dbPath)
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
 
 	w := New(dbName, dir)
-	assert.True(t, logExists(t, path.Join(dbPath, w.name)))
+	assert.True(t, test.FileExists(t, path.Join(dbPath, w.name)))
 
 	assert.Equal(t, dbName, w.dbName)
 }
@@ -36,8 +36,8 @@ func TestWAL_Write(t *testing.T) {
 	dbName := "wal_test"
 	dbPath := path.Join(dir, dbName)
 
-	makeDatabase(t, dbPath)
-	defer cleanup(dbPath)
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
 
 	w := New(dbName, dir)
 
@@ -79,8 +79,8 @@ func TestWAL_Size(t *testing.T) {
 	dbName := "wal_test"
 	dbPath := path.Join(dir, dbName)
 
-	makeDatabase(t, dbPath)
-	defer cleanup(dbPath)
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
 
 	w := New(dbName, dir)
 
@@ -99,25 +99,4 @@ func writeRecord(t *testing.T, w *WAL, rec *storage.Record) uint32 {
 	w.Write(rec)
 
 	return uint32(len(data))
-}
-
-func logExists(t *testing.T, logPath string) bool {
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		return false
-	} else if err == nil {
-		return true
-	}
-
-	assert.FailNow(t, "could not check if WAL exists")
-
-	return false
-}
-
-func makeDatabase(t *testing.T, dbFilePath string) {
-	err := os.MkdirAll(dbFilePath, 0755)
-	assert.NoError(t, err)
-}
-
-func cleanup(dbPath string) {
-	os.RemoveAll(dbPath)
 }

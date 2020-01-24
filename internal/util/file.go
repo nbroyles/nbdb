@@ -1,20 +1,16 @@
 package util
 
 import (
-	"fmt"
 	"os"
 	"path"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 // CreateFile is a helper for WAL, SSTable, Manifest and other classes that need to create files
 // for on disk output
-func CreateFile(prefix string, dbName string, dataDir string) *os.File {
-	name := fmt.Sprintf("%s_%s_%d", prefix, dbName, time.Now().UnixNano()/1_000_000_000)
-
-	tablePath := path.Join(dataDir, dbName, name)
+func CreateFile(filename string, dbName string, dataDir string) *os.File {
+	tablePath := path.Join(dataDir, dbName, filename)
 	if _, err := os.Stat(tablePath); !os.IsNotExist(err) {
 		if err != nil {
 			log.Panicf("failure checking for %s existence: %v", tablePath, err)
