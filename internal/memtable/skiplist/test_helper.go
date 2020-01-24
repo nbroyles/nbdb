@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
-
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/stretchr/testify/assert"
 )

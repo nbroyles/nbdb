@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/nbroyles/nbdb/internal/manifest"
 	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/internal/wal"
@@ -19,6 +20,7 @@ import (
 type DB struct {
 	memTable *memtable.MemTable
 	walog    *wal.WAL
+	manifest *manifest.Manifest
 	name     string
 }
 
@@ -50,6 +52,8 @@ func newDB(name string, datadir string) (*DB, error) {
 		return nil, fmt.Errorf("database %s already exists. use DB#Open instead", name)
 	}
 
+	manifest.CreateManifestFile(name, datadir)
+
 	return openDB(name, datadir)
 }
 
@@ -68,7 +72,7 @@ func openDB(name string, datadir string) (*DB, error) {
 		}
 	}
 
-	return &DB{memTable: memtable.New(), walog: wal.New(name, datadir), name: name}, nil
+	return &DB{memTable: memtable.New(), walog: wal.New(name, datadir), manifest: manifest.LoadLatest(name, datadir), name: name}, nil
 }
 
 // Exists checks if database name already exists or not
