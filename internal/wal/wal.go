@@ -1,12 +1,17 @@
 package wal
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
+	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/nbroyles/nbdb/internal/storage"
+	"github.com/nbroyles/nbdb/internal/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,33 +20,52 @@ import (
 //  sstables). This ensures that upon crash, memtable that was in memory can be regenerated
 // from the writeahead log
 type WAL struct {
-	dbName  string
-	name    string
 	codec   storage.Codec
 	logFile *os.File
 	size    uint32
 }
 
+const (
+	walPrefix  = "wal"
+	uint32size = 4
+)
+
 // New creates a new writeahead log and returns a reference to it
-// TODO: refactor to use util.CreateFile
-func New(dbName string, dataDir string) *WAL {
-	name := fmt.Sprintf("wal_%s_%d", dbName, time.Now().UnixNano()/1_000_000_000)
+func New(file *os.File) *WAL {
+	return &WAL{codec: storage.Codec{}, logFile: file, size: 0}
+}
 
-	logPath := path.Join(dataDir, dbName, name)
-	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
-		if err != nil {
-			log.Panicf("failure checking for WAL existence: %v", err)
-		} else {
-			log.Panicf("attempting to create new WAL %s but already exists", logPath)
-		}
-	}
+func CreateFile(dbName string, dataDir string) *os.File {
+	return util.CreateFile(fmt.Sprintf("%s_%s_%d", walPrefix, dbName, time.Now().UnixNano()/1_000_000_000),
+		dbName, dataDir)
+}
 
-	logFile, err := os.Create(logPath)
+// FindExisting returns true and the WAL filename if an existing WAL is fine. Otherwise, returns false
+func FindExisting(dbName string, dataDir string) (bool, *WAL, error) {
+	search := path.Join(dataDir, dbName, fmt.Sprintf("%s_%s_*", walPrefix, dbName))
+	matches, err := filepath.Glob(search)
 	if err != nil {
-		log.Panicf("could not create WAL file: %v", err)
+		return false, nil, fmt.Errorf("error loading WAL file: %w", err)
+	} else if len(matches) == 0 {
+		return false, nil, nil
+	} else if len(matches) > 1 {
+		return false, nil, fmt.Errorf("multiple WAL files detected: %v", matches)
 	}
 
-	return &WAL{dbName: dbName, name: name, codec: storage.Codec{}, logFile: logFile}
+	file, err := os.OpenFile(matches[0], os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return false, nil, fmt.Errorf("error opening existing WAL file: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		return false, nil, fmt.Errorf("error retrieving file info for WAL: %w", err)
+	}
+
+	wal := New(file)
+	wal.size = uint32(info.Size())
+
+	return true, wal, nil
 }
 
 // Write writes the record to the writeahead log
@@ -52,8 +76,8 @@ func (w *WAL) Write(record *storage.Record) {
 	}
 
 	if n, err := w.logFile.Write(data); n != len(data) {
-		log.Panicf("failed to write entirety of data to log, bytes written=%d, expected=%d",
-			n, len(data))
+		log.Panicf("failed to write entirety of data to log, bytes written=%d, expected=%d, err=%v",
+			n, len(data), err)
 	} else if err != nil {
 		log.Panicf("failed to write data to log: %v", err)
 	}
@@ -71,4 +95,39 @@ func (w *WAL) Size() uint32 {
 	return w.size
 }
 
-// TODO: Think about restore mechanism for WAL. When to perform? How would it work?
+func (w *WAL) Restore(mem *memtable.MemTable) error {
+	for {
+		data := make([]byte, uint32size)
+		if n, err := w.logFile.Read(data); err == io.EOF {
+			break
+		} else if n != len(data) {
+			return fmt.Errorf("failed to read expected amount of data from WAL."+
+				" read=%d, expected=%d", n, len(data))
+		} else if err != nil {
+			return fmt.Errorf("failed to read record: %w", err)
+		}
+
+		rLen := binary.BigEndian.Uint32(data)
+
+		recBytes := make([]byte, rLen)
+		if n, err := w.logFile.Read(recBytes); uint32(n) != rLen {
+			return fmt.Errorf("failed to read expected amount of record data from WAL."+
+				" read=%d, expected=%d", n, rLen)
+		} else if err != nil {
+			return fmt.Errorf("failed to read record: %w", err)
+		}
+
+		record, err := w.codec.Decode(recBytes)
+		if err != nil {
+			return fmt.Errorf("failed to decoding record: %w", err)
+		}
+
+		if record.Type == storage.RecordUpdate {
+			mem.Put(record.Key, record.Value)
+		} else {
+			mem.Delete(record.Key)
+		}
+	}
+
+	return nil
+}

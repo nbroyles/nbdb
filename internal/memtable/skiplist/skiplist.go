@@ -82,7 +82,10 @@ func (s *SkipList) Put(key []byte, value []byte) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if contains, _ := s.get(key); contains {
+	shouldUpdate, _ := s.get(key)
+	shouldUpdate = shouldUpdate || s.isDeleted(key)
+
+	if shouldUpdate {
 		s.update(key, value)
 	} else {
 		s.insert(key, value)
@@ -99,7 +102,9 @@ func (s *SkipList) Delete(key []byte) bool {
 	removed := false
 	for i := s.levels - 1; i >= 0; i-- {
 		for ; c.next[i] != nil; c = c.next[i] {
-			if bytes.Equal(c.next[i].key, key) && !c.next[i].deleted {
+			if bytes.Compare(c.next[i].key, key) > 0 {
+				break
+			} else if bytes.Equal(c.next[i].key, key) && !c.next[i].deleted {
 				c.next[i].deleted = true
 				removed = true
 				break
@@ -115,7 +120,9 @@ func (s *SkipList) update(key []byte, value []byte) {
 	updated := false
 	for i := s.levels - 1; i >= 0; i-- {
 		for ; c.next[i] != nil; c = c.next[i] {
-			if bytes.Equal(c.next[i].key, key) {
+			if bytes.Compare(c.next[i].key, key) > 0 {
+				break
+			} else if bytes.Equal(c.next[i].key, key) {
 				c.next[i].value = value
 				c.next[i].deleted = false
 				updated = true
@@ -155,6 +162,21 @@ func (s *SkipList) insert(key []byte, value []byte) {
 			c.next[i] = newNode
 		}
 	}
+}
+
+func (s *SkipList) isDeleted(key []byte) bool {
+	c := s.head
+	for i := s.levels - 1; i >= 0; i-- {
+		for ; c.next[i] != nil; c = c.next[i] {
+			if bytes.Compare(c.next[i].key, key) > 0 {
+				break
+			} else if bytes.Equal(c.next[i].key, key) {
+				return c.next[i].deleted
+			}
+		}
+	}
+
+	return false
 }
 
 // Print prints skip list in a pretty format. Should only be used for debugging

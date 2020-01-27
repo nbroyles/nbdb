@@ -57,7 +57,8 @@ func decodePointer(t *testing.T, codec *storage.Codec, bytes []byte, start uint3
 }
 
 func decodeRecord(t *testing.T, codec *storage.Codec, bytes []byte, start uint32, stop uint32) *storage.Record {
-	rec, err := codec.Decode(bytes[start:stop])
+	// +4 to ignore totalLen uint32
+	rec, err := codec.Decode(bytes[start+4 : stop])
 	assert.NoError(t, err)
 
 	return rec

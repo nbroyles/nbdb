@@ -82,10 +82,7 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 func (c *Codec) Decode(record []byte) (*Record, error) {
 	reader := bytes.NewReader(record)
 
-	var totalLen uint32
-	if err := binary.Read(reader, binary.BigEndian, &totalLen); err != nil {
-		return nil, fmt.Errorf("failed to read record length: %w", err)
-	}
+	totalLen := len(record)
 
 	data := make([]byte, totalLen)
 	if n, err := io.ReadFull(reader, data); n != len(data) {
