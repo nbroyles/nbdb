@@ -16,7 +16,10 @@ func TestCodec_RoundTripUpdate(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	record, err := codec.Decode(data)
+	totalLen := binary.BigEndian.Uint32(data[0:4])
+	assert.Equal(t, totalLen, uint32(len(data)-4)) // length of data minus preceding bytes tracking total record len
+
+	record, err := codec.Decode(data[4:])
 	assert.NoError(t, err)
 
 	assert.Equal(t, Record{
@@ -34,7 +37,10 @@ func TestCodec_RoundTripDelete(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	record, err := codec.Decode(data)
+	totalLen := binary.BigEndian.Uint32(data[0:4])
+	assert.Equal(t, totalLen, uint32(len(data)-4))
+
+	record, err := codec.Decode(data[4:])
 	assert.NoError(t, err)
 
 	assert.Equal(t, Record{
@@ -61,5 +67,10 @@ func TestCodec_ChecksumFail(t *testing.T) {
 		data[csStart+i] = csBytes[i]
 	}
 
-	assert.Panics(t, func() { _, _ = codec.Decode(data) })
+	assert.Panics(t, func() {
+		totalLen := binary.BigEndian.Uint32(data[0:4])
+		assert.Equal(t, totalLen, uint32(len(data)-4))
+
+		_, _ = codec.Decode(data[4:])
+	})
 }
