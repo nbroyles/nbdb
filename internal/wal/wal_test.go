@@ -8,6 +8,8 @@ import (
 	"path"
 	"testing"
 
+	"github.com/nbroyles/nbdb/internal/memtable"
+
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/test"
 	"github.com/stretchr/testify/assert"
@@ -23,10 +25,8 @@ func TestNew(t *testing.T) {
 	test.MakeDB(t, dbPath)
 	defer test.CleanupDB(dbPath)
 
-	w := New(dbName, dir)
-	assert.True(t, test.FileExists(t, path.Join(dbPath, w.name)))
-
-	assert.Equal(t, dbName, w.dbName)
+	w := New(CreateFile(dbName, dir))
+	assert.True(t, test.FileExists(t, w.logFile.Name()))
 }
 
 func TestWAL_Write(t *testing.T) {
@@ -39,7 +39,7 @@ func TestWAL_Write(t *testing.T) {
 	test.MakeDB(t, dbPath)
 	defer test.CleanupDB(dbPath)
 
-	w := New(dbName, dir)
+	w := New(CreateFile(dbName, dir))
 
 	records := []*storage.Record{
 		storage.NewRecord([]byte("foo"), []byte("bar"), false),
@@ -51,8 +51,7 @@ func TestWAL_Write(t *testing.T) {
 		w.Write(record)
 	}
 
-	logPath := path.Join(dbPath, w.name)
-	data, err := ioutil.ReadFile(logPath)
+	data, err := ioutil.ReadFile(w.logFile.Name())
 	assert.NoError(t, err)
 
 	for i, j := 0, 0; i < len(data); j++ {
@@ -62,7 +61,7 @@ func TestWAL_Write(t *testing.T) {
 		err = binary.Read(reader, binary.BigEndian, &totalLen)
 		assert.NoError(t, err)
 
-		recordBytes := data[i:(i + int(totalLen) + 4)]
+		recordBytes := data[i+4 : (i + int(totalLen) + 4)]
 		actualRecord, err := w.codec.Decode(recordBytes)
 		assert.NoError(t, err)
 
@@ -82,7 +81,7 @@ func TestWAL_Size(t *testing.T) {
 	test.MakeDB(t, dbPath)
 	defer test.CleanupDB(dbPath)
 
-	w := New(dbName, dir)
+	w := New(CreateFile(dbName, dir))
 
 	sz := uint32(0)
 	sz += writeRecord(t, w, storage.NewRecord([]byte("foo"), []byte("bar"), false))
@@ -90,6 +89,49 @@ func TestWAL_Size(t *testing.T) {
 
 	sz += writeRecord(t, w, storage.NewRecord([]byte("foo2"), []byte("bar2"), false))
 	assert.Equal(t, sz, w.Size())
+}
+
+func TestWAL_Restore(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "wal_test"
+	dbPath := path.Join(dir, dbName)
+
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
+
+	w := New(CreateFile(dbName, dir))
+
+	records := []*storage.Record{
+		storage.NewRecord([]byte("foo"), []byte("bar"), false),
+		storage.NewRecord([]byte("foo"), nil, true),
+		storage.NewRecord([]byte("foo"), []byte("baz"), false),
+		storage.NewRecord([]byte("oooooh"), []byte("wweeee"), false),
+	}
+	for _, record := range records {
+		w.Write(record)
+	}
+
+	found, loadedWal, err := FindExisting(dbName, dir)
+	assert.NoError(t, err)
+	assert.True(t, found)
+
+	mt := memtable.New()
+	iter := mt.InternalIterator()
+	assert.False(t, iter.HasNext())
+
+	err = loadedWal.Restore(mt)
+	assert.NoError(t, err)
+
+	iter = mt.InternalIterator()
+	rec := iter.Next()
+	assert.Equal(t, records[2], rec)
+
+	rec = iter.Next()
+	assert.Equal(t, records[3], rec)
+
+	assert.False(t, iter.HasNext())
 }
 
 func writeRecord(t *testing.T, w *WAL, rec *storage.Record) uint32 {

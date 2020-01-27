@@ -72,7 +72,24 @@ func openDB(name string, datadir string) (*DB, error) {
 		}
 	}
 
-	return &DB{memTable: memtable.New(), walog: wal.New(name, datadir), manifest: manifest.LoadLatest(name, datadir), name: name}, nil
+	mem := memtable.New()
+
+	// Attempt to load WAL if exists. Otherwise create a new one
+	found, walog, err := wal.FindExisting(name, datadir)
+	if err != nil {
+		return nil, fmt.Errorf("failed attempting to look for existing WAL file: %w", err)
+
+	}
+
+	if !found {
+		walog = wal.New(wal.CreateFile(name, datadir))
+	} else {
+		if err = walog.Restore(mem); err != nil {
+			return nil, fmt.Errorf("failed attempting to restore WAL: %w", err)
+		}
+	}
+
+	return &DB{memTable: mem, walog: walog, manifest: manifest.LoadLatest(name, datadir), name: name}, nil
 }
 
 // Exists checks if database name already exists or not
