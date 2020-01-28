@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
-	"sync"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 	log "github.com/sirupsen/logrus"
@@ -29,9 +28,6 @@ type Node struct {
 //   - https://en.wikipedia.org/wiki/Skip_list
 //   - https://igoro.com/archive/skip-lists-are-fascinating/
 type SkipList struct {
-	// TODO: this level of locking is pretty heavy handed.
-	// Investigate lockless skip lists?
-	lock   sync.RWMutex
 	head   *Node
 	levels int
 }
@@ -50,9 +46,6 @@ func New(seed int64) *SkipList {
 // Get returns a boolean indicating whether the specified key
 // was found in the list. If true, the value is returned as well
 func (s *SkipList) Get(key []byte) (bool, []byte) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
 	return s.get(key)
 }
 
@@ -79,9 +72,6 @@ func (s *SkipList) get(key []byte) (bool, []byte) {
 
 // Put inserts or updates the value if the key already exists
 func (s *SkipList) Put(key []byte, value []byte) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	shouldUpdate, _ := s.get(key)
 	shouldUpdate = shouldUpdate || s.isDeleted(key)
 
@@ -95,9 +85,6 @@ func (s *SkipList) Put(key []byte, value []byte) {
 // Removes the specified key from the skip list. Returns true if
 // key was removed and false if key was not present
 func (s *SkipList) Delete(key []byte) bool {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	c := s.head
 	removed := false
 	for i := s.levels - 1; i >= 0; i-- {
