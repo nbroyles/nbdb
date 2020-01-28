@@ -97,6 +97,15 @@ func TestSkipList_InternalIterator(t *testing.T) {
 	assertNextRecordEquals(t, iter, "howdy", "time", false)
 }
 
+func TestSkipList_Size(t *testing.T) {
+	list := New(1)
+
+	put(list, "howdy", "time")
+	put(list, "awww", "yeah")
+
+	assert.Equal(t, list.Size(), uint32(17))
+}
+
 func assertSkipListValue(t *testing.T, list *SkipList, key string, value string) {
 	ok, actual := list.Get([]byte(key))
 
