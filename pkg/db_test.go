@@ -1,9 +1,11 @@
 package pkg
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +101,57 @@ func TestOpenOrNew(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, dbName, db.name)
+}
+
+func TestLocking(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "foo"
+
+	// assert lock doesn't already exist
+	lockPath := path.Join(dir, dbName, lockFile)
+	_, err = os.Stat(lockPath)
+	assert.True(t, os.IsNotExist(err))
+
+	db, err := newDB(dbName, dir)
+	defer cleanup(dbName, dir)
+	assert.NoError(t, err)
+
+	// Check for lock
+	info, err := os.Stat(lockPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, info)
+
+	// Close and ensure lock gone
+	db.Close()
+	_, err = os.Stat(lockPath)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestFailIfLocked(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	// Set up existing lock file
+	dbName := "foo"
+	dbPath := path.Join(dir, dbName)
+	err = os.MkdirAll(dbPath, 0755)
+	defer cleanup(dbName, dir)
+
+	assert.NoError(t, err)
+
+	lockPath := path.Join(dbPath, lockFile)
+	lockFile, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
+	assert.NoError(t, err)
+
+	_, err = lockFile.WriteString(strconv.Itoa(os.Getpid() + 1))
+	assert.NoError(t, err)
+
+	// Try to open db; expect an error
+	_, err = openOrNew(dbName, dir)
+	assert.EqualError(t, err, fmt.Sprintf("could not lock database: cannot lock database. already "+
+		"locked by another process (%d)", os.Getpid()+1))
 }
 
 func cleanup(name string, datadir string) {

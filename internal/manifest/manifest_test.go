@@ -73,7 +73,8 @@ func TestLoadLatest(t *testing.T) {
 	man.AddEntry(&Entry{deleted: true})
 
 	// Open as new manifest
-	man2 := LoadLatest(dbName, dir)
+	_, man2, err := LoadLatest(dbName, dir)
+	assert.NoError(t, err)
 
 	assert.Equal(t, man.entries, man2.entries)
 }
