@@ -1,9 +1,11 @@
 package pkg
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/nbroyles/nbdb/internal/manifest"
 	"github.com/nbroyles/nbdb/internal/memtable"
@@ -22,11 +24,13 @@ type DB struct {
 	walog    *wal.WAL
 	manifest *manifest.Manifest
 	name     string
+	dataDir  string
 }
 
 const (
 	// Makes sense on Mac OS X, may not elsewhere
-	datadir = "/usr/local/var/nbdb"
+	datadir  = "/usr/local/var/nbdb"
+	lockFile = "__DB_LOCK__"
 )
 
 // New creates a new database based on the name provided.
@@ -52,9 +56,47 @@ func newDB(name string, datadir string) (*DB, error) {
 		return nil, fmt.Errorf("database %s already exists. use DB#Open instead", name)
 	}
 
-	manifest.CreateManifestFile(name, datadir)
-
 	return openDB(name, datadir)
+}
+
+func lock(name string, dataDir string) error {
+	pid := os.Getpid()
+	lockPath := path.Join(dataDir, name, lockFile)
+
+	lock, err := os.Open(lockPath)
+	// Database is not currently locked, attempt to acquire
+	if os.IsNotExist(err) {
+		if lockFile, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666); os.IsExist(err) {
+			return fmt.Errorf("cannot lock database. already locked by another process")
+		} else if err != nil {
+			return fmt.Errorf("failure attempting to lock database: %w", err)
+		} else {
+			pidBytes := []byte(strconv.Itoa(pid))
+			if n, err := lockFile.Write(pidBytes); n < len(pidBytes) {
+				return fmt.Errorf("failure writing owner pid to lock file. wrote %d bytes, expected %d",
+					n, len(pidBytes))
+			} else if err != nil {
+				return fmt.Errorf("failure writing owner pid to lock file: %w", err)
+			}
+			return nil
+		}
+	} else if err != nil {
+		return fmt.Errorf("failure attempting to lock database: %w", err)
+	} else {
+		// Database currently locked, see if it's me
+		scanner := bufio.NewScanner(lock)
+		scanner.Scan()
+		lockPid, err := strconv.Atoi(scanner.Text())
+		if err != nil {
+			return fmt.Errorf("failed attempting to read lockfile: %w", err)
+		}
+
+		if lockPid == pid {
+			return nil
+		} else {
+			return fmt.Errorf("cannot lock database. already locked by another process (%d)", lockPid)
+		}
+	}
 }
 
 // Open opens a database of the name provided. Open fails
@@ -72,13 +114,16 @@ func openDB(name string, datadir string) (*DB, error) {
 		}
 	}
 
+	if err := lock(name, datadir); err != nil {
+		return nil, fmt.Errorf("could not lock database: %w", err)
+	}
+
 	mem := memtable.New()
 
 	// Attempt to load WAL if exists. Otherwise create a new one
 	found, walog, err := wal.FindExisting(name, datadir)
 	if err != nil {
 		return nil, fmt.Errorf("failed attempting to look for existing WAL file: %w", err)
-
 	}
 
 	if !found {
@@ -89,7 +134,14 @@ func openDB(name string, datadir string) (*DB, error) {
 		}
 	}
 
-	return &DB{memTable: mem, walog: walog, manifest: manifest.LoadLatest(name, datadir), name: name}, nil
+	found, man, err := manifest.LoadLatest(name, datadir)
+	if err != nil {
+		return nil, fmt.Errorf("failed attempting to load manifest file: %w", err)
+	} else if !found {
+		man = manifest.NewManifest(manifest.CreateManifestFile(name, datadir))
+	}
+
+	return &DB{memTable: mem, walog: walog, manifest: man, name: name, dataDir: datadir}, nil
 }
 
 // Exists checks if database name already exists or not
@@ -124,6 +176,16 @@ func openOrNew(name string, datadir string) (*DB, error) {
 	} else {
 		return newDB(name, datadir)
 	}
+}
+
+// Close ensures that any resources used by the DB are tidied up
+func (d *DB) Close() error {
+	return d.unlock()
+}
+
+func (d *DB) unlock() error {
+	lockPath := path.Join(d.dataDir, d.name, lockFile)
+	return os.Remove(lockPath)
 }
 
 // Get returns the value associated with the key. If key is not found then
