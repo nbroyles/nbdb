@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"sync"
 
 	"github.com/nbroyles/nbdb/internal/manifest"
 	"github.com/nbroyles/nbdb/internal/memtable"
@@ -15,16 +16,18 @@ import (
 
 // TODO: copy keys and values passed as arguments
 // TODO: check key and value size and fail if > threshold
-// TODO: think about concurrency at this level (e.g. concurrent calls to put/get/delete can be made
-// TODO: add close method that cleans up (e.g. closes WAL (deletes?))
-// TODO: Lock DB when opened for access
 
+// DB represents the API for database access
+// One process can have a database open at a time
+// Calls to Get, Put, Delete are thread-safe
 type DB struct {
+	name    string
+	dataDir string
+
+	mutex    sync.RWMutex
 	memTable *memtable.MemTable
 	walog    *wal.WAL
 	manifest *manifest.Manifest
-	name     string
-	dataDir  string
 }
 
 const (
@@ -191,17 +194,26 @@ func (d *DB) unlock() error {
 // Get returns the value associated with the key. If key is not found then
 // the value returned is nil
 func (d *DB) Get(key []byte) []byte {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
 	return d.memTable.Get(key)
 }
 
 // Put inserts or updates the value if the key already exists
 func (d *DB) Put(key []byte, value []byte) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
 	d.walog.Write(storage.NewRecord(key, value, false))
 	d.memTable.Put(key, value)
 }
 
 // Deletes the specified key from the data store
 func (d *DB) Delete(key []byte) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
 	d.walog.Write(storage.NewRecord(key, nil, true))
 	d.memTable.Delete(key)
 }
