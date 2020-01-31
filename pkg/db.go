@@ -36,20 +36,33 @@ const (
 	lockFile = "__DB_LOCK__"
 )
 
-// New creates a new database based on the name provided.
-// New fails if the database already exists
-func New(name string) (*DB, error) {
-	return newDB(name, datadir)
+type DBOpts struct {
+	dataDir     string
+	mtSizeLimit uint32
 }
 
-func newDB(name string, datadir string) (*DB, error) {
-	if err := os.MkdirAll(datadir, 0755); err != nil {
-		return nil, fmt.Errorf("could not create data dir %s: %w", datadir, err)
+func (o *DBOpts) applyDefaults() {
+	if o.dataDir == "" {
+		o.dataDir = datadir
 	}
 
-	dbPath := path.Join(datadir, name)
+	if o.mtSizeLimit == 0 {
+		o.mtSizeLimit = uint32(1000) // TODO: update this placeholder
+	}
+}
 
-	if exists, err := exists(name, datadir); !exists {
+// New creates a new database based on the name provided.
+// New fails if the database already exists
+func New(name string, opts DBOpts) (*DB, error) {
+	opts.applyDefaults()
+
+	if err := os.MkdirAll(opts.dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("could not create data dir %s: %w", opts.dataDir, err)
+	}
+
+	dbPath := path.Join(opts.dataDir, name)
+
+	if exists, err := exists(name, opts.dataDir); !exists {
 		if err := os.Mkdir(dbPath, 0755); err != nil {
 			return nil, fmt.Errorf("failed creating data directory for database %s: %w", name, err)
 		}
@@ -59,7 +72,7 @@ func newDB(name string, datadir string) (*DB, error) {
 		return nil, fmt.Errorf("database %s already exists. use DB#Open instead", name)
 	}
 
-	return openDB(name, datadir)
+	return Open(name, opts)
 }
 
 func lock(name string, dataDir string) error {
@@ -104,12 +117,10 @@ func lock(name string, dataDir string) error {
 
 // Open opens a database of the name provided. Open fails
 // if the database does not exist
-func Open(name string) (*DB, error) {
-	return openDB(name, datadir)
-}
+func Open(name string, opts DBOpts) (*DB, error) {
+	opts.applyDefaults()
 
-func openDB(name string, datadir string) (*DB, error) {
-	if exists, err := exists(name, datadir); !exists {
+	if exists, err := exists(name, opts.dataDir); !exists {
 		if err == nil {
 			return nil, fmt.Errorf("failed opening database %s. does not exist", name)
 		} else {
@@ -117,39 +128,34 @@ func openDB(name string, datadir string) (*DB, error) {
 		}
 	}
 
-	if err := lock(name, datadir); err != nil {
+	if err := lock(name, opts.dataDir); err != nil {
 		return nil, fmt.Errorf("could not lock database: %w", err)
 	}
 
 	mem := memtable.New()
 
 	// Attempt to load WAL if exists. Otherwise create a new one
-	found, walog, err := wal.FindExisting(name, datadir)
+	found, walog, err := wal.FindExisting(name, opts.dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed attempting to look for existing WAL file: %w", err)
 	}
 
 	if !found {
-		walog = wal.New(wal.CreateFile(name, datadir))
+		walog = wal.New(wal.CreateFile(name, opts.dataDir))
 	} else {
 		if err = walog.Restore(mem); err != nil {
 			return nil, fmt.Errorf("failed attempting to restore WAL: %w", err)
 		}
 	}
 
-	found, man, err := manifest.LoadLatest(name, datadir)
+	found, man, err := manifest.LoadLatest(name, opts.dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed attempting to load manifest file: %w", err)
 	} else if !found {
-		man = manifest.NewManifest(manifest.CreateManifestFile(name, datadir))
+		man = manifest.NewManifest(manifest.CreateManifestFile(name, opts.dataDir))
 	}
 
-	return &DB{memTable: mem, walog: walog, manifest: man, name: name, dataDir: datadir}, nil
-}
-
-// Exists checks if database name already exists or not
-func Exists(name string) (bool, error) {
-	return exists(name, datadir)
+	return &DB{memTable: mem, walog: walog, manifest: man, name: name, dataDir: opts.dataDir}, nil
 }
 
 func exists(name string, datadir string) (bool, error) {
@@ -164,20 +170,18 @@ func exists(name string, datadir string) (bool, error) {
 }
 
 // OpenOrNew opens the DB if it exists or creates it if it doesn't
-func OpenOrNew(name string) (*DB, error) {
-	return openOrNew(name, datadir)
-}
+func OpenOrNew(name string, opts DBOpts) (*DB, error) {
+	opts.applyDefaults()
 
-func openOrNew(name string, datadir string) (*DB, error) {
-	dbExists, err := exists(name, datadir)
+	dbExists, err := exists(name, opts.dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed checking if database %s already exists: %v", name, err)
 	}
 
 	if dbExists {
-		return openDB(name, datadir)
+		return Open(name, opts)
 	} else {
-		return newDB(name, datadir)
+		return New(name, opts)
 	}
 }
 
