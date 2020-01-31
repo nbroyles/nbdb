@@ -67,10 +67,9 @@ func TestCodec_ChecksumFail(t *testing.T) {
 		data[csStart+i] = csBytes[i]
 	}
 
-	assert.Panics(t, func() {
-		totalLen := binary.BigEndian.Uint32(data[0:4])
-		assert.Equal(t, totalLen, uint32(len(data)-4))
+	totalLen := binary.BigEndian.Uint32(data[0:4])
+	assert.Equal(t, totalLen, uint32(len(data)-4))
 
-		_, _ = codec.Decode(data[4:])
-	})
+	_, err = codec.Decode(data[4:])
+	assert.EqualError(t, err, "expected checksum of WAL record does not match! expected=12, actual=538011314")
 }

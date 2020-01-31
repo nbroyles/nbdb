@@ -58,7 +58,8 @@ func TestCreateManifestFile(t *testing.T) {
 	test.MakeDB(t, dbPath)
 	defer test.CleanupDB(dbPath)
 
-	m := CreateManifestFile(dbName, dir)
+	m, err := CreateManifestFile(dbName, dir)
+	assert.NoError(t, err)
 
 	assert.True(t, test.FileExists(t, m.Name()))
 }
@@ -74,7 +75,8 @@ func TestLoadLatest(t *testing.T) {
 	defer test.CleanupDB(dbPath)
 
 	// Create manifest
-	m := CreateManifestFile(dbName, dir)
+	m, err := CreateManifestFile(dbName, dir)
+	assert.NoError(t, err)
 	assert.True(t, test.FileExists(t, m.Name()))
 	man := NewManifest(m)
 

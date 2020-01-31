@@ -34,7 +34,7 @@ func New(file *os.File) *WAL {
 	return &WAL{codec: storage.Codec{}, logFile: file, size: 0}
 }
 
-func CreateFile(dbName string, dataDir string) *os.File {
+func CreateFile(dbName string, dataDir string) (*os.File, error) {
 	return util.CreateFile(fmt.Sprintf("%s_%s_%d", walPrefix, dbName, time.Now().UnixNano()/1_000_000_000),
 		dbName, dataDir)
 }

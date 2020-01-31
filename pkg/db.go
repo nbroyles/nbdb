@@ -154,7 +154,11 @@ func Open(name string, opts DBOpts) (*DB, error) {
 	}
 
 	if !found {
-		walog = wal.New(wal.CreateFile(name, opts.dataDir))
+		waf, err := wal.CreateFile(name, opts.dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("could not create WAL file: %w", err)
+		}
+		walog = wal.New(waf)
 	} else {
 		if err = walog.Restore(mem); err != nil {
 			return nil, fmt.Errorf("failed attempting to restore WAL: %w", err)
@@ -165,7 +169,11 @@ func Open(name string, opts DBOpts) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed attempting to load manifest file: %w", err)
 	} else if !found {
-		man = manifest.NewManifest(manifest.CreateManifestFile(name, opts.dataDir))
+		maf, err := manifest.CreateManifestFile(name, opts.dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("could not create manifest file: %w", err)
+		}
+		man = manifest.NewManifest(maf)
 	}
 
 	db := &DB{
@@ -248,7 +256,19 @@ func (d *DB) Put(key []byte, value []byte) error {
 		d.compactingWAL = d.walog
 
 		d.memTable = memtable.New()
-		d.walog = wal.New(wal.CreateFile(d.name, d.dataDir))
+
+		waf, err := wal.CreateFile(d.name, d.dataDir)
+		if err != nil {
+			// Abort compaction attempt
+			d.memTable = d.compactingMemTable
+			d.walog = d.compactingWAL
+
+			d.compactingMemTable = nil
+			d.compactingWAL = nil
+
+			return fmt.Errorf("could not create WAL file: %w", err)
+		}
+		d.walog = wal.New(waf)
 
 		d.compact <- true
 	}
@@ -295,10 +315,13 @@ func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 }
 
 func (d *DB) doCompaction() error {
-	file := sstable.CreateFile(d.name, d.dataDir)
+	file, err := sstable.CreateFile(d.name, d.dataDir)
+	if err != nil {
+		return fmt.Errorf("failed attempt to create new sstable file: %w", err)
+	}
 	defer file.Close()
 
-	err := d.flushMemTable(filepath.Base(file.Name()), file)
+	err = d.flushMemTable(filepath.Base(file.Name()), file)
 
 	if err == nil {
 		if err = file.Sync(); err != nil {
