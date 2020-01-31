@@ -9,7 +9,6 @@ import (
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/internal/util"
-	log "github.com/sirupsen/logrus"
 )
 
 // Builder is a structure that can take an iterator from a memtable data structure and use
@@ -44,7 +43,7 @@ func newBuilder(name string, iter interfaces.InternalIterator, writer io.Writer,
 
 // TODO: crashing while writing -- what to do?
 // WriteLevel0Table writes data from memtable iterator to an sstable file.
-func (s *Builder) WriteLevel0Table() *Metadata {
+func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 	recWritten := 0
 	bytesWritten := uint32(0)
 
@@ -56,10 +55,12 @@ func (s *Builder) WriteLevel0Table() *Metadata {
 		rec := s.iter.Next()
 		bytes, err := s.codec.Encode(rec)
 		if err != nil {
-			log.Panicf("could not encode record: %v", err)
+			return nil, fmt.Errorf("could not encode record: %w", err)
 		}
 
-		s.write(bytes)
+		if err = s.write(bytes); err != nil {
+			return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
+		}
 
 		// Create index entry if reached threshold for number of written records
 		if recWritten%s.indexPerRecord == 0 {
@@ -77,10 +78,12 @@ func (s *Builder) WriteLevel0Table() *Metadata {
 		ptr := indices[key]
 		bytes, err := s.codec.EncodePointer(&ptr)
 		if err != nil {
-			log.Panicf("could not encode index pointer record: %v", err)
+			return nil, fmt.Errorf("could not encode index pointer record: %w", err)
 		}
 
-		s.write(bytes)
+		if err = s.write(bytes); err != nil {
+			return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
+		}
 
 		// Keep length of first index block written for use in footer pointer
 		if firstLen == 0 {
@@ -94,20 +97,25 @@ func (s *Builder) WriteLevel0Table() *Metadata {
 		Length:         uint32(firstLen),
 	})
 	if err != nil {
-		log.Panicf("could not encode footer pointer record: %v", err)
+		return nil, fmt.Errorf("could not encode footer pointer record: %w", err)
 	}
-	s.write(bytes)
+
+	if err = s.write(bytes); err != nil {
+		return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
+	}
 
 	return &Metadata{
 		Level:    0,
 		Filename: s.name,
-	}
+	}, nil
 }
 
-func (s *Builder) write(bytes []byte) {
+func (s *Builder) write(bytes []byte) error {
 	if n, err := s.writer.Write(bytes); n != len(bytes) {
-		log.Panicf("failed to write all bytes to disk. n=%d, expected=%d", n, len(bytes))
+		return fmt.Errorf("failed to write all bytes to disk. n=%d, expected=%d", n, len(bytes))
 	} else if err != nil {
-		log.Panicf("failure writing level 0 sstable: %v", err)
+		return fmt.Errorf("failure writing level 0 sstable: %w", err)
 	}
+
+	return nil
 }

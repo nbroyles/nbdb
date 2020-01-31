@@ -277,7 +277,10 @@ func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 	iter := d.compactingMemTable.InternalIterator()
 
 	builder := sstable.NewBuilder(tableName, iter, writer)
-	metadata := builder.WriteLevel0Table()
+	metadata, err := builder.WriteLevel0Table()
+	if err != nil {
+		return fmt.Errorf("could not write memtable to level 0 sstable: %w", err)
+	}
 
 	return d.manifest.AddEntry(manifest.NewEntry(metadata, false))
 }
