@@ -279,9 +279,7 @@ func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 	builder := sstable.NewBuilder(tableName, iter, writer)
 	metadata := builder.WriteLevel0Table()
 
-	d.manifest.AddEntry(manifest.NewEntry(metadata, false))
-
-	return nil
+	return d.manifest.AddEntry(manifest.NewEntry(metadata, false))
 }
 
 func (d *DB) doCompaction() error {

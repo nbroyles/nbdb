@@ -12,7 +12,6 @@ import (
 
 	"github.com/nbroyles/nbdb/internal/sstable"
 	"github.com/nbroyles/nbdb/internal/util"
-	log "github.com/sirupsen/logrus"
 )
 
 type Manifest struct {
@@ -95,17 +94,19 @@ func LoadLatest(dbName string, dataDir string) (bool, *Manifest, error) {
 	return true, m, nil
 }
 
-func (m *Manifest) AddEntry(entry *Entry) {
+func (m *Manifest) AddEntry(entry *Entry) error {
 	m.entries = append(m.entries, entry)
 
 	bytes, err := m.codec.EncodeEntry(entry)
 	if err != nil {
-		log.Panicf("failed encoding manifest entry %v: %v", entry, err)
+		return fmt.Errorf("failed encoding manifest entry %v: %w", entry, err)
 	}
 
 	if written, err := m.writer.Write(bytes); written < len(bytes) {
-		log.Panicf("failed writing to manifest. wrote %d bytes, expected %d bytes", written, len(bytes))
+		return fmt.Errorf("failed writing to manifest. wrote %d bytes, expected %d bytes", written, len(bytes))
 	} else if err != nil {
-		log.Panicf("failed writing to manifest: %v", err)
+		return fmt.Errorf("failed writing to manifest: %w", err)
 	}
+
+	return nil
 }
