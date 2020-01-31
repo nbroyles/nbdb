@@ -16,7 +16,7 @@ func TestNew(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbName := "foo"
-	_, err = newDB(dbName, dir)
+	_, err = New(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 
 	assert.NoError(t, err)
@@ -29,12 +29,12 @@ func TestNew_AlreadyExists(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbName := "foo"
-	_, err = newDB(dbName, dir)
+	_, err = New(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 
 	assert.NoError(t, err)
 
-	_, err = newDB(dbName, dir)
+	_, err = New(dbName, DBOpts{dataDir: dir})
 	assert.EqualError(t, err, "database foo already exists. use DB#Open instead")
 }
 
@@ -43,7 +43,7 @@ func TestExists(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbName := "foo"
-	_, err = newDB(dbName, dir)
+	_, err = New(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 
 	assert.NoError(t, err)
@@ -59,7 +59,7 @@ func TestOpen(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbName := "foo"
-	_, err = newDB(dbName, dir)
+	_, err = New(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 
 	assert.NoError(t, err)
@@ -67,7 +67,7 @@ func TestOpen(t *testing.T) {
 	// TODO: replace this logic with DB#Close when implemented
 	closeDb(t, dbName, dir)
 
-	db, err := openDB(dbName, dir)
+	db, err := Open(dbName, DBOpts{dataDir: dir})
 	assert.NoError(t, err)
 
 	assert.Equal(t, dbName, db.name)
@@ -77,7 +77,7 @@ func TestOpen_NotExist(t *testing.T) {
 	dir, err := os.Getwd()
 	assert.NoError(t, err)
 
-	_, err = openDB("foo", dir)
+	_, err = Open("foo", DBOpts{dataDir: dir})
 	assert.EqualError(t, err, "failed opening database foo. does not exist")
 }
 
@@ -88,7 +88,7 @@ func TestOpenOrNew(t *testing.T) {
 	dbName := "foo"
 	assert.False(t, dbExists(t, dbName, dir))
 
-	_, err = openOrNew(dbName, dir)
+	_, err = OpenOrNew(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 
 	assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestOpenOrNew(t *testing.T) {
 	// TODO: replace this logic with DB#Close when implemented
 	closeDb(t, dbName, dir)
 
-	db, err := openOrNew(dbName, dir)
+	db, err := OpenOrNew(dbName, DBOpts{dataDir: dir})
 	assert.NoError(t, err)
 
 	assert.Equal(t, dbName, db.name)
@@ -114,7 +114,7 @@ func TestLocking(t *testing.T) {
 	_, err = os.Stat(lockPath)
 	assert.True(t, os.IsNotExist(err))
 
-	db, err := newDB(dbName, dir)
+	db, err := New(dbName, DBOpts{dataDir: dir})
 	defer cleanup(dbName, dir)
 	assert.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestFailIfLocked(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Try to open db; expect an error
-	_, err = openOrNew(dbName, dir)
+	_, err = OpenOrNew(dbName, DBOpts{dataDir: dir})
 	assert.EqualError(t, err, fmt.Sprintf("could not lock database: cannot lock database. already "+
 		"locked by another process (%d)", os.Getpid()+1))
 }
