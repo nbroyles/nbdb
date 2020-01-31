@@ -232,11 +232,14 @@ func (d *DB) Get(key []byte) []byte {
 }
 
 // Put inserts or updates the value if the key already exists
-func (d *DB) Put(key []byte, value []byte) {
+func (d *DB) Put(key []byte, value []byte) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	d.walog.Write(storage.NewRecord(key, value, false))
+	if err := d.walog.Write(storage.NewRecord(key, value, false)); err != nil {
+		return fmt.Errorf("failed attempting write put to WAL: %w", err)
+	}
+
 	d.memTable.Put(key, value)
 
 	// compactingMemTable not being nil indicating that a compaction is already underway
@@ -249,15 +252,21 @@ func (d *DB) Put(key []byte, value []byte) {
 
 		d.compact <- true
 	}
+
+	return nil
 }
 
 // Deletes the specified key from the data store
-func (d *DB) Delete(key []byte) {
+func (d *DB) Delete(key []byte) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	d.walog.Write(storage.NewRecord(key, nil, true))
+	if err := d.walog.Write(storage.NewRecord(key, nil, true)); err != nil {
+		return fmt.Errorf("failed attempting write delete to WAL: %w", err)
+	}
 	d.memTable.Delete(key)
+
+	return nil
 }
 
 func (d *DB) compactionWatcher() {

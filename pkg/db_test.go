@@ -164,8 +164,8 @@ func TestMemtableFlush(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	db.Put([]byte("foo"), []byte("bar"))
-	db.Put([]byte("bar"), []byte("baz"))
+	assert.NoError(t, db.Put([]byte("foo"), []byte("bar")))
+	assert.NoError(t, db.Put([]byte("bar"), []byte("baz")))
 
 	db.compactingWAL = db.walog
 	db.compactingMemTable = db.memTable

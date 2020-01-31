@@ -48,7 +48,7 @@ func TestWAL_Write(t *testing.T) {
 		storage.NewRecord([]byte("oooooh"), []byte("wweeee"), false),
 	}
 	for _, record := range records {
-		w.Write(record)
+		assert.NoError(t, w.Write(record))
 	}
 
 	data, err := ioutil.ReadFile(w.logFile.Name())
@@ -110,7 +110,7 @@ func TestWAL_Restore(t *testing.T) {
 		storage.NewRecord([]byte("oooooh"), []byte("wweeee"), false),
 	}
 	for _, record := range records {
-		w.Write(record)
+		assert.NoError(t, w.Write(record))
 	}
 
 	found, loadedWal, err := FindExisting(dbName, dir)
@@ -156,7 +156,7 @@ func writeRecord(t *testing.T, w *WAL, rec *storage.Record) uint32 {
 	data, err := w.codec.Encode(rec)
 	assert.NoError(t, err)
 
-	w.Write(rec)
+	assert.NoError(t, w.Write(rec))
 
 	return uint32(len(data))
 }
