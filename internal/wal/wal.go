@@ -131,3 +131,18 @@ func (w *WAL) Restore(mem *memtable.MemTable) error {
 
 	return nil
 }
+
+func (w *WAL) Close() error {
+	if err := w.logFile.Close(); err != nil {
+		return fmt.Errorf("failed attempting to close WAL log file: %w", err)
+	}
+
+	// TODO: if this fails, the log file is closed and future calls to Close will error
+	// on the os.File#Close call. Could leave an old WAL around
+	if err := os.Remove(w.logFile.Name()); err != nil {
+		w.logFile.Close()
+		return fmt.Errorf("failed attempting to remove WAL file: %w", err)
+	}
+
+	return nil
+}

@@ -3,15 +3,19 @@ package pkg
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"sync"
 
 	"github.com/nbroyles/nbdb/internal/manifest"
 	"github.com/nbroyles/nbdb/internal/memtable"
+	"github.com/nbroyles/nbdb/internal/sstable"
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/internal/wal"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO: copy keys and values passed as arguments
@@ -28,12 +32,21 @@ type DB struct {
 	memTable *memtable.MemTable
 	walog    *wal.WAL
 	manifest *manifest.Manifest
+
+	compactingMemTable *memtable.MemTable
+	compactingWAL      *wal.WAL
+	compact            chan bool
+	stopWatching       chan bool
+	mtSizeLimit        uint32
 }
 
+// TODO: allow configuration via options provided to constructor
 const (
 	// Makes sense on Mac OS X, may not elsewhere
 	datadir  = "/usr/local/var/nbdb"
 	lockFile = "__DB_LOCK__"
+	// Limit memtable to 4 MBs before flushing
+	mtSizeLimit = uint32(4194304)
 )
 
 type DBOpts struct {
@@ -47,7 +60,7 @@ func (o *DBOpts) applyDefaults() {
 	}
 
 	if o.mtSizeLimit == 0 {
-		o.mtSizeLimit = uint32(1000) // TODO: update this placeholder
+		o.mtSizeLimit = mtSizeLimit
 	}
 }
 
@@ -155,7 +168,20 @@ func Open(name string, opts DBOpts) (*DB, error) {
 		man = manifest.NewManifest(manifest.CreateManifestFile(name, opts.dataDir))
 	}
 
-	return &DB{memTable: mem, walog: walog, manifest: man, name: name, dataDir: opts.dataDir}, nil
+	db := &DB{
+		memTable:     mem,
+		walog:        walog,
+		manifest:     man,
+		name:         name,
+		dataDir:      opts.dataDir,
+		compact:      make(chan bool, 1),
+		stopWatching: make(chan bool),
+		mtSizeLimit:  opts.mtSizeLimit,
+	}
+
+	go db.compactionWatcher()
+
+	return db, nil
 }
 
 func exists(name string, datadir string) (bool, error) {
@@ -187,6 +213,7 @@ func OpenOrNew(name string, opts DBOpts) (*DB, error) {
 
 // Close ensures that any resources used by the DB are tidied up
 func (d *DB) Close() error {
+	close(d.stopWatching)
 	return d.unlock()
 }
 
@@ -211,6 +238,17 @@ func (d *DB) Put(key []byte, value []byte) {
 
 	d.walog.Write(storage.NewRecord(key, value, false))
 	d.memTable.Put(key, value)
+
+	// compactingMemTable not being nil indicating that a compaction is already underway
+	if d.memTable.Size() > d.mtSizeLimit && d.compactingMemTable == nil {
+		d.compactingMemTable = d.memTable
+		d.compactingWAL = d.walog
+
+		d.memTable = memtable.New()
+		d.walog = wal.New(wal.CreateFile(d.name, d.dataDir))
+
+		d.compact <- true
+	}
 }
 
 // Deletes the specified key from the data store
@@ -220,4 +258,53 @@ func (d *DB) Delete(key []byte) {
 
 	d.walog.Write(storage.NewRecord(key, nil, true))
 	d.memTable.Delete(key)
+}
+
+func (d *DB) compactionWatcher() {
+	for {
+		select {
+		case <-d.compact:
+			if err := d.doCompaction(); err != nil {
+				log.Errorf("error performing compaction: %v", err)
+			}
+		case <-d.stopWatching:
+			return
+		}
+	}
+}
+
+func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
+	iter := d.compactingMemTable.InternalIterator()
+
+	builder := sstable.NewBuilder(tableName, iter, writer)
+	metadata := builder.WriteLevel0Table()
+
+	d.manifest.AddEntry(manifest.NewEntry(metadata, false))
+
+	return nil
+}
+
+func (d *DB) doCompaction() error {
+	file := sstable.CreateFile(d.name, d.dataDir)
+	defer file.Close()
+
+	err := d.flushMemTable(filepath.Base(file.Name()), file)
+
+	if err == nil {
+		if err = file.Sync(); err != nil {
+			return fmt.Errorf("error flushing sstable to disk: %w", err)
+		}
+
+		d.mutex.Lock()
+		defer d.mutex.Unlock()
+
+		if err = d.compactingWAL.Close(); err != nil {
+			return fmt.Errorf("failed attempt to close WAL: %w", err)
+		}
+
+		d.compactingMemTable = nil
+		d.compactingWAL = nil
+	}
+
+	return nil
 }
