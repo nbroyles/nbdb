@@ -22,7 +22,6 @@ type Manifest struct {
 }
 
 type Entry struct {
-	// nolint: unused,structcheck
 	metadata *sstable.Metadata
 	deleted  bool
 }
@@ -34,6 +33,10 @@ const (
 
 func NewManifest(writer io.Writer) *Manifest {
 	return &Manifest{writer: writer}
+}
+
+func NewEntry(metadata *sstable.Metadata, deleted bool) *Entry {
+	return &Entry{metadata: metadata, deleted: deleted}
 }
 
 func CreateManifestFile(dbName string, dataDir string) *os.File {

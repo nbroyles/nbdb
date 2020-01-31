@@ -35,3 +35,7 @@ func (m *MemTable) Delete(key []byte) {
 func (m *MemTable) InternalIterator() interfaces.InternalIterator {
 	return m.memStore.InternalIterator()
 }
+
+func (m *MemTable) Size() uint32 {
+	return m.memStore.Size()
+}

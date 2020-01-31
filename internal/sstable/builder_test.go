@@ -17,9 +17,10 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 	mem.Put([]byte("foo"), []byte("bar"))
 	mem.Put([]byte("baz"), []byte("bax"))
 
-	builder := newBuilder(mem.InternalIterator(), &buf, 1)
+	builder := newBuilder("test", mem.InternalIterator(), &buf, 1)
 
-	builder.WriteLevel0Table()
+	meta := builder.WriteLevel0Table()
+	assert.Equal(t, &Metadata{Level: 0, Filename: "test"}, meta)
 
 	// Expect buf to now have:
 	// - 2 record entries aka 2 records

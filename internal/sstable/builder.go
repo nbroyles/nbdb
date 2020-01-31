@@ -1,16 +1,21 @@
 package sstable
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"time"
 
 	"github.com/nbroyles/nbdb/internal/memtable/interfaces"
 	"github.com/nbroyles/nbdb/internal/storage"
+	"github.com/nbroyles/nbdb/internal/util"
 	log "github.com/sirupsen/logrus"
 )
 
 // Builder is a structure that can take an iterator from a memtable data structure and use
 // that to create an SSTable
 type Builder struct {
+	name           string
 	iter           interfaces.InternalIterator
 	codec          *storage.Codec
 	writer         io.Writer
@@ -21,19 +26,25 @@ const (
 	// TODO: Make this configurable as option?
 	indexCount = 1000
 	pointerLen = 8 // bytes. Two uint32s
+	sstPrefix  = "sstable"
 )
 
-func NewBuilder(iter interfaces.InternalIterator, writer io.Writer) *Builder {
-	return newBuilder(iter, writer, indexCount)
+func CreateFile(dbName string, dataDir string) *os.File {
+	return util.CreateFile(fmt.Sprintf("%s_%s_%d", sstPrefix, dbName, time.Now().UnixNano()/1_000_000_000),
+		dbName, dataDir)
 }
 
-func newBuilder(iter interfaces.InternalIterator, writer io.Writer, indexPerRecord int) *Builder {
-	return &Builder{iter: iter, codec: &storage.Codec{}, writer: writer, indexPerRecord: indexPerRecord}
+func NewBuilder(name string, iter interfaces.InternalIterator, writer io.Writer) *Builder {
+	return newBuilder(name, iter, writer, indexCount)
+}
+
+func newBuilder(name string, iter interfaces.InternalIterator, writer io.Writer, indexPerRecord int) *Builder {
+	return &Builder{name: name, iter: iter, codec: &storage.Codec{}, writer: writer, indexPerRecord: indexPerRecord}
 }
 
 // TODO: crashing while writing -- what to do?
 // WriteLevel0Table writes data from memtable iterator to an sstable file.
-func (s *Builder) WriteLevel0Table() {
+func (s *Builder) WriteLevel0Table() *Metadata {
 	recWritten := 0
 	bytesWritten := uint32(0)
 
@@ -87,7 +98,10 @@ func (s *Builder) WriteLevel0Table() {
 	}
 	s.write(bytes)
 
-	// TODO: write to manifest
+	return &Metadata{
+		Level:    0,
+		Filename: s.name,
+	}
 }
 
 func (s *Builder) write(bytes []byte) {

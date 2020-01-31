@@ -17,4 +17,7 @@ type InMemoryStore interface {
 	// InternalIterator returns an iterator that can be used to iterate over each element
 	// in the store. Primarily useful when flushing structure to an sstable on disk
 	InternalIterator() InternalIterator
+
+	// Size returns the approximate size of the underlying structure
+	Size() uint32
 }

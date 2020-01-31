@@ -30,6 +30,7 @@ type Node struct {
 type SkipList struct {
 	head   *Node
 	levels int
+	size   uint32
 }
 
 var _ interfaces.InMemoryStore = &SkipList{}
@@ -72,14 +73,17 @@ func (s *SkipList) get(key []byte) (bool, []byte) {
 
 // Put inserts or updates the value if the key already exists
 func (s *SkipList) Put(key []byte, value []byte) {
-	shouldUpdate, _ := s.get(key)
+	shouldUpdate, oldValue := s.get(key)
 	shouldUpdate = shouldUpdate || s.isDeleted(key)
 
 	if shouldUpdate {
 		s.update(key, value)
+		s.size += uint32(len(value) - len(oldValue))
 	} else {
 		s.insert(key, value)
+		s.size += uint32(len(key) + len(value))
 	}
+
 }
 
 // Removes the specified key from the skip list. Returns true if
@@ -247,4 +251,8 @@ func (s *SkipList) generateLevels() int {
 
 func (s *SkipList) InternalIterator() interfaces.InternalIterator {
 	return NewIterator(s)
+}
+
+func (s *SkipList) Size() uint32 {
+	return s.size
 }

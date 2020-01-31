@@ -134,6 +134,24 @@ func TestWAL_Restore(t *testing.T) {
 	assert.False(t, iter.HasNext())
 }
 
+func TestWAL_Close(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "wal_test"
+	dbPath := path.Join(dir, dbName)
+
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
+
+	w := New(CreateFile(dbName, dir))
+	assert.True(t, test.FileExists(t, w.logFile.Name()))
+
+	err = w.Close()
+	assert.NoError(t, err)
+	assert.False(t, test.FileExists(t, w.logFile.Name()))
+}
+
 func writeRecord(t *testing.T, w *WAL, rec *storage.Record) uint32 {
 	data, err := w.codec.Encode(rec)
 	assert.NoError(t, err)

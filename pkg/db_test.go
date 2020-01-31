@@ -154,6 +154,39 @@ func TestFailIfLocked(t *testing.T) {
 		"locked by another process (%d)", os.Getpid()+1))
 }
 
+func TestMemtableFlush(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "foo"
+	db, err := New(dbName, DBOpts{dataDir: dir})
+	defer cleanup(dbName, dir)
+
+	assert.NoError(t, err)
+
+	db.Put([]byte("foo"), []byte("bar"))
+	db.Put([]byte("bar"), []byte("baz"))
+
+	db.compactingWAL = db.walog
+	db.compactingMemTable = db.memTable
+
+	err = db.doCompaction()
+	assert.NoError(t, err)
+
+	assert.Nil(t, db.compactingMemTable)
+	assert.Nil(t, db.compactingWAL)
+
+	matches, err := filepath.Glob(path.Join(dir, dbName, "wal_*"))
+	assert.NoError(t, err)
+	assert.Zero(t, len(matches))
+
+	matches, err = filepath.Glob(path.Join(dir, dbName, "sstable_*"))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(matches))
+
+	// TODO: add tests for reading values once easier to parse a sstable
+}
+
 func cleanup(name string, datadir string) {
 	os.RemoveAll(path.Join(datadir, name))
 }

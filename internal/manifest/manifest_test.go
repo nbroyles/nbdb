@@ -7,6 +7,8 @@ import (
 	"path"
 	"testing"
 
+	"github.com/nbroyles/nbdb/internal/sstable"
+
 	"github.com/nbroyles/nbdb/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,9 +18,17 @@ func TestManifest_AddEntry(t *testing.T) {
 	man := NewManifest(&buf)
 
 	entry1 := &Entry{
+		metadata: &sstable.Metadata{
+			Level:    0,
+			Filename: "foo",
+		},
 		deleted: false,
 	}
 	entry2 := &Entry{
+		metadata: &sstable.Metadata{
+			Level:    0,
+			Filename: "bar",
+		},
 		deleted: true,
 	}
 
@@ -69,8 +79,8 @@ func TestLoadLatest(t *testing.T) {
 	man := NewManifest(m)
 
 	// Add some entries
-	man.AddEntry(&Entry{deleted: false})
-	man.AddEntry(&Entry{deleted: true})
+	man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: false})
+	man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: true})
 
 	// Open as new manifest
 	_, man2, err := LoadLatest(dbName, dir)
