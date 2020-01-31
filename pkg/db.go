@@ -154,7 +154,11 @@ func Open(name string, opts DBOpts) (*DB, error) {
 	}
 
 	if !found {
-		walog = wal.New(wal.CreateFile(name, opts.dataDir))
+		waf, err := wal.CreateFile(name, opts.dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("could not create WAL file: %w", err)
+		}
+		walog = wal.New(waf)
 	} else {
 		if err = walog.Restore(mem); err != nil {
 			return nil, fmt.Errorf("failed attempting to restore WAL: %w", err)
@@ -165,7 +169,11 @@ func Open(name string, opts DBOpts) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed attempting to load manifest file: %w", err)
 	} else if !found {
-		man = manifest.NewManifest(manifest.CreateManifestFile(name, opts.dataDir))
+		maf, err := manifest.CreateManifestFile(name, opts.dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("could not create manifest file: %w", err)
+		}
+		man = manifest.NewManifest(maf)
 	}
 
 	db := &DB{
@@ -232,11 +240,14 @@ func (d *DB) Get(key []byte) []byte {
 }
 
 // Put inserts or updates the value if the key already exists
-func (d *DB) Put(key []byte, value []byte) {
+func (d *DB) Put(key []byte, value []byte) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	d.walog.Write(storage.NewRecord(key, value, false))
+	if err := d.walog.Write(storage.NewRecord(key, value, false)); err != nil {
+		return fmt.Errorf("failed attempting write put to WAL: %w", err)
+	}
+
 	d.memTable.Put(key, value)
 
 	// compactingMemTable not being nil indicating that a compaction is already underway
@@ -245,19 +256,37 @@ func (d *DB) Put(key []byte, value []byte) {
 		d.compactingWAL = d.walog
 
 		d.memTable = memtable.New()
-		d.walog = wal.New(wal.CreateFile(d.name, d.dataDir))
+
+		waf, err := wal.CreateFile(d.name, d.dataDir)
+		if err != nil {
+			// Abort compaction attempt
+			d.memTable = d.compactingMemTable
+			d.walog = d.compactingWAL
+
+			d.compactingMemTable = nil
+			d.compactingWAL = nil
+
+			return fmt.Errorf("could not create WAL file: %w", err)
+		}
+		d.walog = wal.New(waf)
 
 		d.compact <- true
 	}
+
+	return nil
 }
 
 // Deletes the specified key from the data store
-func (d *DB) Delete(key []byte) {
+func (d *DB) Delete(key []byte) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	d.walog.Write(storage.NewRecord(key, nil, true))
+	if err := d.walog.Write(storage.NewRecord(key, nil, true)); err != nil {
+		return fmt.Errorf("failed attempting write delete to WAL: %w", err)
+	}
 	d.memTable.Delete(key)
+
+	return nil
 }
 
 func (d *DB) compactionWatcher() {
@@ -277,18 +306,22 @@ func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 	iter := d.compactingMemTable.InternalIterator()
 
 	builder := sstable.NewBuilder(tableName, iter, writer)
-	metadata := builder.WriteLevel0Table()
+	metadata, err := builder.WriteLevel0Table()
+	if err != nil {
+		return fmt.Errorf("could not write memtable to level 0 sstable: %w", err)
+	}
 
-	d.manifest.AddEntry(manifest.NewEntry(metadata, false))
-
-	return nil
+	return d.manifest.AddEntry(manifest.NewEntry(metadata, false))
 }
 
 func (d *DB) doCompaction() error {
-	file := sstable.CreateFile(d.name, d.dataDir)
+	file, err := sstable.CreateFile(d.name, d.dataDir)
+	if err != nil {
+		return fmt.Errorf("failed attempt to create new sstable file: %w", err)
+	}
 	defer file.Close()
 
-	err := d.flushMemTable(filepath.Base(file.Name()), file)
+	err = d.flushMemTable(filepath.Base(file.Name()), file)
 
 	if err == nil {
 		if err = file.Sync(); err != nil {

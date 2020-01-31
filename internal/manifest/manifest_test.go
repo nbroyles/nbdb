@@ -32,14 +32,14 @@ func TestManifest_AddEntry(t *testing.T) {
 		deleted: true,
 	}
 
-	man.AddEntry(entry1)
+	assert.NoError(t, man.AddEntry(entry1))
 
 	eLen := binary.BigEndian.Uint32(buf.Bytes()[0:uint32size])
 	actual, err := man.codec.DecodeEntry(buf.Bytes()[4 : 4+eLen])
 	assert.NoError(t, err)
 	assert.Equal(t, entry1, actual)
 
-	man.AddEntry(entry2)
+	assert.NoError(t, man.AddEntry(entry2))
 
 	e1End := 4 + eLen
 	eLen = binary.BigEndian.Uint32(buf.Bytes()[e1End : e1End+uint32size])
@@ -58,7 +58,8 @@ func TestCreateManifestFile(t *testing.T) {
 	test.MakeDB(t, dbPath)
 	defer test.CleanupDB(dbPath)
 
-	m := CreateManifestFile(dbName, dir)
+	m, err := CreateManifestFile(dbName, dir)
+	assert.NoError(t, err)
 
 	assert.True(t, test.FileExists(t, m.Name()))
 }
@@ -74,13 +75,14 @@ func TestLoadLatest(t *testing.T) {
 	defer test.CleanupDB(dbPath)
 
 	// Create manifest
-	m := CreateManifestFile(dbName, dir)
+	m, err := CreateManifestFile(dbName, dir)
+	assert.NoError(t, err)
 	assert.True(t, test.FileExists(t, m.Name()))
 	man := NewManifest(m)
 
 	// Add some entries
-	man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: false})
-	man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: true})
+	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: false}))
+	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: true}))
 
 	// Open as new manifest
 	_, man2, err := LoadLatest(dbName, dir)

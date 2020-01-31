@@ -12,7 +12,6 @@ import (
 	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/nbroyles/nbdb/internal/storage"
 	"github.com/nbroyles/nbdb/internal/util"
-	log "github.com/sirupsen/logrus"
 )
 
 // WAL is the structure representing the writeahead log. All updates (incl. deletes)
@@ -35,7 +34,7 @@ func New(file *os.File) *WAL {
 	return &WAL{codec: storage.Codec{}, logFile: file, size: 0}
 }
 
-func CreateFile(dbName string, dataDir string) *os.File {
+func CreateFile(dbName string, dataDir string) (*os.File, error) {
 	return util.CreateFile(fmt.Sprintf("%s_%s_%d", walPrefix, dbName, time.Now().UnixNano()/1_000_000_000),
 		dbName, dataDir)
 }
@@ -69,26 +68,27 @@ func FindExisting(dbName string, dataDir string) (bool, *WAL, error) {
 }
 
 // Write writes the record to the writeahead log
-func (w *WAL) Write(record *storage.Record) {
+func (w *WAL) Write(record *storage.Record) error {
 	data, err := w.codec.Encode(record)
 	if err != nil {
-		log.Panicf("failed encoding data to write to log: %v", err)
+		return fmt.Errorf("failed encoding data to write to log: %w", err)
 	}
 
 	if n, err := w.logFile.Write(data); n != len(data) {
-		log.Panicf("failed to write entirety of data to log, bytes written=%d, expected=%d, err=%v",
+		return fmt.Errorf("failed to write entirety of data to log, bytes written=%d, expected=%d, err=%w",
 			n, len(data), err)
 	} else if err != nil {
-		log.Panicf("failed to write data to log: %v", err)
+		return fmt.Errorf("failed to write data to log: %w", err)
 	}
 
 	// update current size of WAL
 	w.size += uint32(len(data))
 
 	if err := w.logFile.Sync(); err != nil {
-		// TODO: warn here. add logrus to get log levels
-		log.Printf("failed syncing data to disk: %v", err)
+		return fmt.Errorf("failed syncing data to disk: %w", err)
 	}
+
+	return nil
 }
 
 func (w *WAL) Size() uint32 {

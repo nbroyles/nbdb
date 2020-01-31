@@ -19,7 +19,8 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 
 	builder := newBuilder("test", mem.InternalIterator(), &buf, 1)
 
-	meta := builder.WriteLevel0Table()
+	meta, err := builder.WriteLevel0Table()
+	assert.NoError(t, err)
 	assert.Equal(t, &Metadata{Level: 0, Filename: "test"}, meta)
 
 	// Expect buf to now have:
@@ -37,7 +38,7 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 	// Now need to calculate how big next index is so that we can read it
 	idx2Start := footer.IndexStartByte + footer.Length
 	var keyLen uint32
-	err := binary.Read(bytes.NewReader(data[idx2Start:idx2Start+4]), binary.BigEndian, &keyLen)
+	err = binary.Read(bytes.NewReader(data[idx2Start:idx2Start+4]), binary.BigEndian, &keyLen)
 	assert.NoError(t, err)
 	idx2Size := 4 + keyLen + 4 + 4 // len(key) + key + recordStartByte + recordLen
 

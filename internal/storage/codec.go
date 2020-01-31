@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Responsible for encoding and decoding data sent to and retrieved
@@ -97,7 +95,7 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 
 	actualChecksum := crc32.ChecksumIEEE(actualRecord)
 	if actualChecksum != expectedChecksum {
-		log.Panicf("expected checksum of WAL record does not match! expected=%d, "+
+		return nil, fmt.Errorf("expected checksum of WAL record does not match! expected=%d, "+
 			"actual=%d", expectedChecksum, actualChecksum)
 	}
 
