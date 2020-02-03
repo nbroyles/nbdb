@@ -50,9 +50,16 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 	indices := make(map[string]storage.RecordPointer)
 	var order []string
 
+	var firstKey []byte
+	var lastKey []byte
+
 	// Write actual key-values to disk
 	for ; s.iter.HasNext(); recWritten++ {
 		rec := s.iter.Next()
+		if firstKey == nil {
+			firstKey = rec.Key
+		}
+
 		bytes, err := s.codec.Encode(rec)
 		if err != nil {
 			return nil, fmt.Errorf("could not encode record: %w", err)
@@ -68,6 +75,7 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 			order = append(order, string(rec.Key))
 		}
 
+		lastKey = rec.Key
 		bytesWritten += uint32(len(bytes))
 	}
 
@@ -107,6 +115,8 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 	return &Metadata{
 		Level:    0,
 		Filename: s.name,
+		StartKey: firstKey,
+		EndKey:   lastKey,
 	}, nil
 }
 
