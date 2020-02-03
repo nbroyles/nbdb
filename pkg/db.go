@@ -236,7 +236,12 @@ func (d *DB) Get(key []byte) []byte {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
 
-	return d.memTable.Get(key)
+	val := d.memTable.Get(key)
+	if val == nil && d.compactingMemTable != nil {
+		return d.compactingMemTable.Get(key)
+	} else {
+		return val
+	}
 }
 
 // Put inserts or updates the value if the key already exists
