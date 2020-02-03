@@ -21,7 +21,7 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 
 	meta, err := builder.WriteLevel0Table()
 	assert.NoError(t, err)
-	assert.Equal(t, &Metadata{Level: 0, Filename: "test"}, meta)
+	assert.Equal(t, &Metadata{Level: 0, Filename: "test", StartKey: []byte("baz"), EndKey: []byte("foo")}, meta)
 
 	// Expect buf to now have:
 	// - 2 record entries aka 2 records

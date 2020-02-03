@@ -12,6 +12,8 @@ func TestCodec_RoundTrip(t *testing.T) {
 	entry := NewEntry(&sstable.Metadata{
 		Level:    3,
 		Filename: "foo",
+		StartKey: []byte("foo"),
+		EndKey:   []byte("bar"),
 	}, false)
 
 	codec := Codec{}

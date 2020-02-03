@@ -21,6 +21,8 @@ func TestManifest_AddEntry(t *testing.T) {
 		metadata: &sstable.Metadata{
 			Level:    0,
 			Filename: "foo",
+			StartKey: []byte("foo"),
+			EndKey:   []byte("bar"),
 		},
 		deleted: false,
 	}
@@ -28,6 +30,8 @@ func TestManifest_AddEntry(t *testing.T) {
 		metadata: &sstable.Metadata{
 			Level:    0,
 			Filename: "bar",
+			StartKey: []byte("baz"),
+			EndKey:   []byte("bax"),
 		},
 		deleted: true,
 	}
@@ -81,8 +85,8 @@ func TestLoadLatest(t *testing.T) {
 	man := NewManifest(m)
 
 	// Add some entries
-	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: false}))
-	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: ""}, deleted: true}))
+	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: "", StartKey: []byte(""), EndKey: []byte("")}, deleted: false}))
+	assert.NoError(t, man.AddEntry(&Entry{metadata: &sstable.Metadata{Level: 0, Filename: "", StartKey: []byte(""), EndKey: []byte("")}, deleted: true}))
 
 	// Open as new manifest
 	_, man2, err := LoadLatest(dbName, dir)
