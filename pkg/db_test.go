@@ -8,8 +8,45 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDB_RoundTrip(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "foo"
+	db, err := New(dbName, DBOpts{dataDir: dir})
+	defer cleanup(dbName, dir)
+	assert.NoError(t, err)
+
+	err = db.Put([]byte("foo"), []byte("bar"))
+	assert.NoError(t, err)
+
+	val := db.Get([]byte("foo"))
+	assert.Equal(t, []byte("bar"), val)
+}
+
+func TestDB_GetFromCompactingMemtable(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "foo"
+	db, err := New(dbName, DBOpts{dataDir: dir})
+	defer cleanup(dbName, dir)
+	assert.NoError(t, err)
+
+	val := db.Get([]byte("foo"))
+	assert.Nil(t, val)
+
+	mt := memtable.New()
+	mt.Put([]byte("foo"), []byte("bar"))
+	db.compactingMemTable = mt
+
+	val = db.Get([]byte("foo"))
+	assert.Equal(t, []byte("bar"), val)
+}
 
 func TestNew(t *testing.T) {
 	dir, err := os.Getwd()
