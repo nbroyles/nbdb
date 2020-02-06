@@ -31,7 +31,7 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 	data := buf.Bytes()
 	codec := builder.codec
 
-	footer := decodeFooter(t, codec, data, uint32(len(data)-pointerLen), uint32(len(data)))
+	footer := decodeFooter(t, codec, data, uint32(len(data)-footerLen), uint32(len(data)))
 	idx1 := decodePointer(t, codec, data, footer.IndexStartByte, footer.IndexStartByte+footer.Length)
 
 	// Get the key length since we don't have a pointer w/ byte length to the first index in the list.
@@ -51,23 +51,23 @@ func TestSSTableBuilder_WriteLevel0Table(t *testing.T) {
 	assert.Equal(t, rec2, storage.NewRecord([]byte("foo"), []byte("bar"), false))
 }
 
-func decodePointer(t *testing.T, codec *storage.Codec, bytes []byte, start uint32, stop uint32) *storage.RecordPointer {
-	ptr, err := codec.DecodePointer(bytes[start:stop])
+func decodePointer(t *testing.T, codec *storage.Codec, b []byte, start uint32, stop uint32) *storage.RecordPointer {
+	ptr, err := codec.DecodePointer(bytes.NewReader(b[start:stop]))
 	assert.NoError(t, err)
 
 	return ptr
 }
 
-func decodeRecord(t *testing.T, codec *storage.Codec, bytes []byte, start uint32, stop uint32) *storage.Record {
+func decodeRecord(t *testing.T, codec *storage.Codec, b []byte, start uint32, stop uint32) *storage.Record {
 	// +4 to ignore totalLen uint32
-	rec, err := codec.Decode(bytes[start+4 : stop])
+	rec, err := codec.Decode(b[start+4 : stop])
 	assert.NoError(t, err)
 
 	return rec
 }
 
-func decodeFooter(t *testing.T, codec *storage.Codec, bytes []byte, start uint32, stop uint32) *storage.Footer {
-	ptr, err := codec.DecodeFooter(bytes[start:stop])
+func decodeFooter(t *testing.T, codec *storage.Codec, b []byte, start uint32, stop uint32) *storage.Footer {
+	ptr, err := codec.DecodeFooter(bytes.NewReader(b[start:stop]))
 	assert.NoError(t, err)
 
 	return ptr

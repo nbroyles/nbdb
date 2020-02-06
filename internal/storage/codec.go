@@ -77,18 +77,11 @@ func (c *Codec) Encode(record *Record) ([]byte, error) {
 
 // Decode takes a record from the WAL and decodes it into a key, value
 // and record type
+// TODO: convert to using a io.reader like other Decode methods?
 func (c *Codec) Decode(record []byte) (*Record, error) {
-	reader := bytes.NewReader(record)
-
 	totalLen := len(record)
 
-	data := make([]byte, totalLen)
-	if n, err := io.ReadFull(reader, data); n != len(data) {
-		return nil, fmt.Errorf("failed to read expected amount of data from log."+
-			" read=%d, expected=%d", n, len(data))
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to read record: %w", err)
-	}
+	data := record
 
 	actualRecord := data[0:(totalLen - 4)] // minus checksum len
 	expectedChecksum := binary.BigEndian.Uint32(data[(totalLen - 4):])
@@ -137,6 +130,23 @@ func (c *Codec) Decode(record []byte) (*Record, error) {
 	}, nil
 }
 
+func (c *Codec) DecodeFromReader(reader io.Reader) (*Record, error) {
+	var length uint32
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("failed to decode length for record: %w", err)
+	}
+
+	data := make([]byte, length)
+	if n, err := reader.Read(data); uint32(n) != length {
+		return nil, fmt.Errorf("failed to read expected amount of record data from sstable."+
+			" read=%d, expected=%d", n, length)
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to read record: %w", err)
+	}
+
+	return c.Decode(data)
+}
+
 func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
 	buf := bytes.Buffer{}
 
@@ -161,9 +171,7 @@ func (c *Codec) EncodePointer(pointer *RecordPointer) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (c *Codec) DecodePointer(data []byte) (*RecordPointer, error) {
-	reader := bytes.NewReader(data)
-
+func (c *Codec) DecodePointer(reader io.Reader) (*RecordPointer, error) {
 	var keyLen uint32
 	if err := binary.Read(reader, binary.BigEndian, &keyLen); err != nil {
 		return nil, fmt.Errorf("failed to read key length: %w", err)
@@ -201,12 +209,14 @@ func (c *Codec) EncodeFooter(footer *Footer) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode length for footer: %w", err)
 	}
 
+	if err := binary.Write(&buf, binary.BigEndian, footer.IndexEntries); err != nil {
+		return nil, fmt.Errorf("failed to encode index entries for footer: %w", err)
+	}
+
 	return buf.Bytes(), nil
 }
 
-func (c *Codec) DecodeFooter(data []byte) (*Footer, error) {
-	reader := bytes.NewReader(data)
-
+func (c *Codec) DecodeFooter(reader io.Reader) (*Footer, error) {
 	var startByte uint32
 	if err := binary.Read(reader, binary.BigEndian, &startByte); err != nil {
 		return nil, fmt.Errorf("failed to decode index start byte for footer: %w", err)
@@ -217,8 +227,14 @@ func (c *Codec) DecodeFooter(data []byte) (*Footer, error) {
 		return nil, fmt.Errorf("failed to decode length for footer: %w", err)
 	}
 
+	var entries uint32
+	if err := binary.Read(reader, binary.BigEndian, &entries); err != nil {
+		return nil, fmt.Errorf("failed to decode index entries for footer: %w", err)
+	}
+
 	return &Footer{
 		IndexStartByte: startByte,
 		Length:         length,
+		IndexEntries:   entries,
 	}, nil
 }

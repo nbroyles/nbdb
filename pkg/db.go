@@ -232,16 +232,51 @@ func (d *DB) unlock() error {
 
 // Get returns the value associated with the key. If key is not found then
 // the value returned is nil
-func (d *DB) Get(key []byte) []byte {
+func (d *DB) Get(key []byte) ([]byte, error) {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
 
 	val := d.memTable.Get(key)
 	if val == nil && d.compactingMemTable != nil {
-		return d.compactingMemTable.Get(key)
-	} else {
-		return val
+		val = d.compactingMemTable.Get(key)
 	}
+
+	// TODO: add a bloom filter to reduce need to potentially check every level
+	// TODO: can we unlock during this search? issue to solve is sstables getting compacted while searching
+	if val == nil {
+		// 255 == uint8 max == max number of levels based on value used for encoding level information on disk
+	levelTraversal:
+		for i := 0; i < 255; i++ {
+			for _, meta := range d.manifest.MetadataForLevel(i) {
+				if meta == nil {
+					break levelTraversal
+				}
+				if meta.ContainsKey(key) {
+					val, err := d.searchSSTable(key, meta)
+					if err != nil {
+						return nil, fmt.Errorf("failed attempting to scan sstable for key %s: %w", string(key), err)
+					}
+
+					if val != nil {
+						return val, nil
+					}
+				}
+			}
+		}
+	}
+
+	return val, nil
+}
+
+func (d *DB) searchSSTable(key []byte, meta *sstable.Metadata) ([]byte, error) {
+	// TODO: cache this instead of opening and closing every time
+	sstHandle, err := os.Open(path.Join(d.dataDir, d.name, meta.Filename))
+	if err != nil {
+		return nil, fmt.Errorf("failed attempting to open sstable for reading: %w", err)
+	}
+	defer sstHandle.Close()
+
+	return sstable.Search(key, sstHandle)
 }
 
 // Put inserts or updates the value if the key already exists

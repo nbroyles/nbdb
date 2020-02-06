@@ -22,9 +22,10 @@ type Builder struct {
 }
 
 const (
-	// TODO: Make this configurable as option?
+	// TODO: Make this configurable as option? Don't make configurable without removing assumtion in sstable.Search
+	// that this won't change -- will need to encode in the metadata
 	indexCount = 1000
-	pointerLen = 8 // bytes. Two uint32s
+	footerLen  = 12
 	sstPrefix  = "sstable"
 )
 
@@ -103,6 +104,7 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 	bytes, err := s.codec.EncodeFooter(&storage.Footer{
 		IndexStartByte: indexStart,
 		Length:         uint32(firstLen),
+		IndexEntries:   uint32(len(indices)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not encode footer pointer record: %w", err)

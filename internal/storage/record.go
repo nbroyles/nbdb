@@ -22,10 +22,11 @@ type RecordPointer struct {
 }
 
 // Footer is the last entry in an sstable. It points to the first index in the list
-// of indices within the file
+// of indices within the file. Length is the length of the index entry in bytes
 type Footer struct {
 	IndexStartByte uint32
 	Length         uint32
+	IndexEntries   uint32
 }
 
 func NewRecord(key []byte, value []byte, delete bool) *Record {
