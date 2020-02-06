@@ -24,7 +24,8 @@ func TestDB_RoundTrip(t *testing.T) {
 	err = db.Put([]byte("foo"), []byte("bar"))
 	assert.NoError(t, err)
 
-	val := db.Get([]byte("foo"))
+	val, err := db.Get([]byte("foo"))
+	assert.NoError(t, err)
 	assert.Equal(t, []byte("bar"), val)
 }
 
@@ -37,15 +38,52 @@ func TestDB_GetFromCompactingMemtable(t *testing.T) {
 	defer cleanup(dbName, dir)
 	assert.NoError(t, err)
 
-	val := db.Get([]byte("foo"))
+	val, err := db.Get([]byte("foo"))
+	assert.NoError(t, err)
 	assert.Nil(t, val)
 
 	mt := memtable.New()
 	mt.Put([]byte("foo"), []byte("bar"))
 	db.compactingMemTable = mt
 
-	val = db.Get([]byte("foo"))
+	val, err = db.Get([]byte("foo"))
+	assert.NoError(t, err)
 	assert.Equal(t, []byte("bar"), val)
+}
+
+func TestDB_GetFromSSTable(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "foo"
+	db, err := New(dbName, DBOpts{dataDir: dir})
+	defer cleanup(dbName, dir)
+
+	assert.NoError(t, err)
+
+	assert.NoError(t, db.Put([]byte("foo"), []byte("bar")))
+	assert.NoError(t, db.Put([]byte("bar"), []byte("baz")))
+
+	db.compactingWAL = db.walog
+	db.compactingMemTable = db.memTable
+
+	db.memTable = memtable.New()
+
+	err = db.doCompaction()
+	assert.NoError(t, err)
+
+	assert.Nil(t, db.compactingMemTable)
+	assert.Nil(t, db.compactingWAL)
+
+	// Key found
+	val, err := db.Get([]byte("foo"))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("bar"), val)
+
+	// Key not found
+	val, err = db.Get([]byte("doo"))
+	assert.NoError(t, err)
+	assert.Nil(t, val)
 }
 
 func TestNew(t *testing.T) {

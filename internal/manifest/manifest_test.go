@@ -50,6 +50,10 @@ func TestManifest_AddEntry(t *testing.T) {
 	actual, err = man.codec.DecodeEntry(buf.Bytes()[e1End+uint32size : e1End+uint32size+eLen])
 	assert.NoError(t, err)
 	assert.Equal(t, entry2, actual)
+
+	meta := man.MetadataForLevel(0)
+	assert.Equal(t, 1, len(meta))
+	assert.Equal(t, entry1.metadata, meta[0])
 }
 
 func TestCreateManifestFile(t *testing.T) {
@@ -93,4 +97,39 @@ func TestLoadLatest(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, man.entries, man2.entries)
+	assert.Equal(t, 1, len(man.MetadataForLevel(0)))
+}
+
+func TestManifest_MetadataForLevel(t *testing.T) {
+	dir, err := os.Getwd()
+	assert.NoError(t, err)
+
+	dbName := "manifest_test"
+	dbPath := path.Join(dir, dbName)
+
+	test.MakeDB(t, dbPath)
+	defer test.CleanupDB(dbPath)
+
+	// Create manifest
+	m, err := CreateManifestFile(dbName, dir)
+	assert.NoError(t, err)
+	assert.True(t, test.FileExists(t, m.Name()))
+	man := NewManifest(m)
+
+	// Add some entries
+	md0_1 := &sstable.Metadata{Level: 0, Filename: "", StartKey: []byte(""), EndKey: []byte("")}
+	md0_2 := &sstable.Metadata{Level: 0, Filename: "", StartKey: []byte(""), EndKey: []byte("")}
+	md1_1 := &sstable.Metadata{Level: 1, Filename: "", StartKey: []byte(""), EndKey: []byte("")}
+	assert.NoError(t, man.AddEntry(&Entry{metadata: md0_1, deleted: false}))
+	assert.NoError(t, man.AddEntry(&Entry{metadata: md0_2, deleted: false}))
+	assert.NoError(t, man.AddEntry(&Entry{metadata: md1_1, deleted: false}))
+
+	l0Meta := man.MetadataForLevel(0)
+	l1Meta := man.MetadataForLevel(1)
+
+	assert.Equal(t, 2, len(l0Meta))
+	assert.Equal(t, []*sstable.Metadata{md0_1, md0_2}, l0Meta)
+
+	assert.Equal(t, 1, len(l1Meta))
+	assert.Equal(t, []*sstable.Metadata{md1_1}, l1Meta)
 }

@@ -71,6 +71,7 @@ func encodeVarLengthField(buf io.Writer, data []byte, lenBytes int) error {
 	return nil
 }
 
+// TODO: convert to using a io.reader like other Decode methods?
 func (c *Codec) DecodeEntry(data []byte) (*Entry, error) {
 	reader := bytes.NewReader(data)
 
