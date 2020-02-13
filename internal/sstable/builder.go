@@ -19,32 +19,41 @@ type Builder struct {
 	codec          *storage.Codec
 	writer         io.Writer
 	indexPerRecord int
+	level          int
 }
 
 const (
 	// TODO: Make this configurable as option? Don't make configurable without removing assumtion in sstable.Search
+	// and sstable.Merger
 	// that this won't change -- will need to encode in the metadata
 	indexCount = 1000
-	footerLen  = 12
 	sstPrefix  = "sstable"
+	footerLen  = 12
 )
 
 func CreateFile(dbName string, dataDir string) (*os.File, error) {
+	// TODO: needs a nonce to prevent potential collusions of really quickly created sstable files
 	return util.CreateFile(fmt.Sprintf("%s_%s_%d", sstPrefix, dbName, time.Now().UnixNano()/1_000_000_000),
 		dbName, dataDir)
 }
 
-func NewBuilder(name string, iter interfaces.InternalIterator, writer io.Writer) *Builder {
-	return newBuilder(name, iter, writer, indexCount)
+func NewBuilder(name string, iter interfaces.InternalIterator, level int, writer io.Writer) *Builder {
+	return newBuilder(name, iter, level, writer, indexCount)
 }
 
-func newBuilder(name string, iter interfaces.InternalIterator, writer io.Writer, indexPerRecord int) *Builder {
-	return &Builder{name: name, iter: iter, codec: &storage.Codec{}, writer: writer, indexPerRecord: indexPerRecord}
+func newBuilder(name string, iter interfaces.InternalIterator, level int, writer io.Writer, indexPerRecord int) *Builder {
+	return &Builder{
+		name:           name,
+		iter:           iter,
+		codec:          &storage.Codec{},
+		writer:         writer,
+		indexPerRecord: indexPerRecord,
+		level:          level}
 }
 
 // TODO: crashing while writing -- what to do?
-// WriteLevel0Table writes data from memtable iterator to an sstable file.
-func (s *Builder) WriteLevel0Table() (*Metadata, error) {
+// WriteTable writes data from memtable iterator to an sstable file.
+func (s *Builder) WriteTable() (*Metadata, error) {
 	recWritten := 0
 	bytesWritten := uint32(0)
 
@@ -66,7 +75,7 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 			return nil, fmt.Errorf("could not encode record: %w", err)
 		}
 
-		if err = s.write(bytes); err != nil {
+		if err = write(s.writer, bytes); err != nil {
 			return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
 		}
 
@@ -90,7 +99,7 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 			return nil, fmt.Errorf("could not encode index pointer record: %w", err)
 		}
 
-		if err = s.write(bytes); err != nil {
+		if err = write(s.writer, bytes); err != nil {
 			return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
 		}
 
@@ -110,24 +119,14 @@ func (s *Builder) WriteLevel0Table() (*Metadata, error) {
 		return nil, fmt.Errorf("could not encode footer pointer record: %w", err)
 	}
 
-	if err = s.write(bytes); err != nil {
+	if err = write(s.writer, bytes); err != nil {
 		return nil, fmt.Errorf("failed attempting to write to level 0 sstable: %w", err)
 	}
 
 	return &Metadata{
-		Level:    0,
+		Level:    uint8(s.level),
 		Filename: s.name,
 		StartKey: firstKey,
 		EndKey:   lastKey,
 	}, nil
-}
-
-func (s *Builder) write(bytes []byte) error {
-	if n, err := s.writer.Write(bytes); n != len(bytes) {
-		return fmt.Errorf("failed to write all bytes to disk. n=%d, expected=%d", n, len(bytes))
-	} else if err != nil {
-		return fmt.Errorf("failure writing level 0 sstable: %w", err)
-	}
-
-	return nil
 }

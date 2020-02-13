@@ -33,9 +33,17 @@ func TestManifest_AddEntry(t *testing.T) {
 			StartKey: []byte("baz"),
 			EndKey:   []byte("bax"),
 		},
+		deleted: false,
+	}
+	entry3 := &Entry{
+		metadata: &sstable.Metadata{
+			Level:    0,
+			Filename: "bar",
+			StartKey: []byte("baz"),
+			EndKey:   []byte("bax"),
+		},
 		deleted: true,
 	}
-
 	assert.NoError(t, man.AddEntry(entry1))
 
 	eLen := binary.BigEndian.Uint32(buf.Bytes()[0:uint32size])
@@ -50,6 +58,8 @@ func TestManifest_AddEntry(t *testing.T) {
 	actual, err = man.codec.DecodeEntry(buf.Bytes()[e1End+uint32size : e1End+uint32size+eLen])
 	assert.NoError(t, err)
 	assert.Equal(t, entry2, actual)
+
+	assert.NoError(t, man.AddEntry(entry3))
 
 	meta := man.MetadataForLevel(0)
 	assert.Equal(t, 1, len(meta))
@@ -97,7 +107,7 @@ func TestLoadLatest(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, man.entries, man2.entries)
-	assert.Equal(t, 1, len(man.MetadataForLevel(0)))
+	assert.Equal(t, 0, len(man.MetadataForLevel(0)))
 }
 
 func TestManifest_MetadataForLevel(t *testing.T) {

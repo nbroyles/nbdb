@@ -89,6 +89,8 @@ func (s *SkipList) Put(key []byte, value []byte) {
 // Removes the specified key from the skip list. Returns true if
 // key was removed and false if key was not present
 func (s *SkipList) Delete(key []byte) bool {
+	// TODO: needs to account for deletes of keys that may not currently be in memtable (this allows us to delete
+	// keys that may exist in sstable)
 	c := s.head
 	removed := false
 	for i := s.levels - 1; i >= 0; i-- {
