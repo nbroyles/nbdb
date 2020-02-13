@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/nbroyles/nbdb/internal/compaction"
 	"github.com/nbroyles/nbdb/internal/manifest"
 	"github.com/nbroyles/nbdb/internal/memtable"
 	"github.com/nbroyles/nbdb/internal/sstable"
@@ -28,10 +29,11 @@ type DB struct {
 	name    string
 	dataDir string
 
-	mutex    sync.RWMutex
-	memTable *memtable.MemTable
-	walog    *wal.WAL
-	manifest *manifest.Manifest
+	mutex     sync.RWMutex
+	memTable  *memtable.MemTable
+	walog     *wal.WAL
+	manifest  *manifest.Manifest
+	compactor *compaction.Compactor
 
 	compactingMemTable *memtable.MemTable
 	compactingWAL      *wal.WAL
@@ -180,6 +182,7 @@ func Open(name string, opts DBOpts) (*DB, error) {
 		memTable:     mem,
 		walog:        walog,
 		manifest:     man,
+		compactor:    compaction.New(man, opts.dataDir, name),
 		name:         name,
 		dataDir:      opts.dataDir,
 		compact:      make(chan bool, 1),
@@ -221,6 +224,9 @@ func OpenOrNew(name string, opts DBOpts) (*DB, error) {
 
 // Close ensures that any resources used by the DB are tidied up
 func (d *DB) Close() error {
+	// TODO:
+	// flush to memtable here
+	// ensure no future get/puts succeed
 	close(d.stopWatching)
 	return d.unlock()
 }
@@ -345,8 +351,8 @@ func (d *DB) compactionWatcher() {
 func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 	iter := d.compactingMemTable.InternalIterator()
 
-	builder := sstable.NewBuilder(tableName, iter, writer)
-	metadata, err := builder.WriteLevel0Table()
+	builder := sstable.NewBuilder(tableName, iter, 0, writer)
+	metadata, err := builder.WriteTable()
 	if err != nil {
 		return fmt.Errorf("could not write memtable to level 0 sstable: %w", err)
 	}
@@ -355,28 +361,34 @@ func (d *DB) flushMemTable(tableName string, writer io.Writer) error {
 }
 
 func (d *DB) doCompaction() error {
-	file, err := sstable.CreateFile(d.name, d.dataDir)
-	if err != nil {
-		return fmt.Errorf("failed attempt to create new sstable file: %w", err)
+	if d.compactingMemTable != nil {
+		file, err := sstable.CreateFile(d.name, d.dataDir)
+		if err != nil {
+			return fmt.Errorf("failed attempt to create new sstable file: %w", err)
+		}
+		defer file.Close()
+
+		err = d.flushMemTable(filepath.Base(file.Name()), file)
+
+		if err == nil {
+			if err = file.Sync(); err != nil {
+				return fmt.Errorf("error flushing sstable to disk: %w", err)
+			}
+
+			d.mutex.Lock()
+			defer d.mutex.Unlock()
+
+			if err = d.compactingWAL.Close(); err != nil {
+				return fmt.Errorf("failed attempt to close WAL: %w", err)
+			}
+
+			d.compactingMemTable = nil
+			d.compactingWAL = nil
+		}
 	}
-	defer file.Close()
 
-	err = d.flushMemTable(filepath.Base(file.Name()), file)
-
-	if err == nil {
-		if err = file.Sync(); err != nil {
-			return fmt.Errorf("error flushing sstable to disk: %w", err)
-		}
-
-		d.mutex.Lock()
-		defer d.mutex.Unlock()
-
-		if err = d.compactingWAL.Close(); err != nil {
-			return fmt.Errorf("failed attempt to close WAL: %w", err)
-		}
-
-		d.compactingMemTable = nil
-		d.compactingWAL = nil
+	if err := d.compactor.Compact(); err != nil {
+		return fmt.Errorf("failed attempting to compact: %w", err)
 	}
 
 	return nil

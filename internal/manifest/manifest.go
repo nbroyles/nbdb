@@ -12,6 +12,7 @@ import (
 
 	"github.com/nbroyles/nbdb/internal/sstable"
 	"github.com/nbroyles/nbdb/internal/util"
+	log "github.com/sirupsen/logrus"
 )
 
 type Manifest struct {
@@ -89,10 +90,7 @@ func LoadLatest(dbName string, dataDir string) (bool, *Manifest, error) {
 			return false, nil, fmt.Errorf("failure decoding manifest entry: %w", err)
 		}
 
-		m.entries = append(m.entries, entry)
-		if !entry.deleted {
-			m.levels[int(entry.metadata.Level)] = append(m.levels[int(entry.metadata.Level)], entry.metadata)
-		}
+		m.addToLevel(entry)
 	}
 
 	return true, m, nil
@@ -111,10 +109,7 @@ func (m *Manifest) AddEntry(entry *Entry) error {
 		return fmt.Errorf("failed writing to manifest: %w", err)
 	}
 
-	m.entries = append(m.entries, entry)
-	if !entry.deleted {
-		m.levels[int(entry.metadata.Level)] = append(m.levels[int(entry.metadata.Level)], entry.metadata)
-	}
+	m.addToLevel(entry)
 
 	return nil
 }
@@ -122,4 +117,29 @@ func (m *Manifest) AddEntry(entry *Entry) error {
 // MetadataForLevel returns metadata for all active sstables at the specified level
 func (m *Manifest) MetadataForLevel(level int) []*sstable.Metadata {
 	return m.levels[level]
+}
+
+func (m *Manifest) Levels() int {
+	return len(m.levels)
+}
+
+func (m *Manifest) addToLevel(entry *Entry) {
+	m.entries = append(m.entries, entry)
+	if !entry.deleted {
+		m.levels[int(entry.metadata.Level)] = append(m.levels[int(entry.metadata.Level)], entry.metadata)
+	} else {
+		// Find entry and remove from in memory structure tracking metadata for each level
+		entries := m.levels[int(entry.metadata.Level)]
+		loc := -1
+		for idx, m := range entries {
+			if m.Filename == entry.metadata.Filename {
+				loc = idx
+				break
+			}
+		}
+		if loc == -1 {
+			log.Panicf("missing metadata entry %v in manifest", entry.metadata)
+		}
+		m.levels[int(entry.metadata.Level)] = append(entries[:loc], entries[loc+1:]...)
+	}
 }
